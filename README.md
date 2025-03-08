@@ -1,2 +1,2 @@
 # BetterScrobbler
-A better Last.fm scrobbler for macOS, and it's global!
+A better Last.fm scrobbler for macOS, and it works globally!
