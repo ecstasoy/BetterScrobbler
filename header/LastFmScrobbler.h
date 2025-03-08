@@ -6,6 +6,8 @@
 #define BETTERSCROBBLER_LASTFMSCROBBLER_H
 
 #include <string>
+#include <map>
+#include <list>
 #include <curl/curl.h>
 
 class LastFmScrobbler {
@@ -18,17 +20,6 @@ public:
     bool init();
 
     void cleanup();
-
-    // Authentication related
-    std::string getAuthToken();
-
-    void openAuthPage(const std::string &token);
-
-    std::string getSessionKey(const std::string &token);
-
-    void saveSessionKey(const std::string &sessionKey);
-
-    std::string loadSessionKey();
 
     // Scrobble related
     bool sendNowPlaying(const std::string &artist,
@@ -47,10 +38,14 @@ public:
 
     std::list<std::string> bestMatch(std::string &artist, std::string &track);
 
-    // Credentials
-    std::string getApiKey();
+    std::string buildApiUrl(const std::string &method,
+                            const std::map<std::string, std::string> &params);
 
-    std::string getApiSecret();
+    std::string sendGetRequest(const std::string &url, int maxRetries = 3);
+
+    std::string sendPostRequest(const std::string &url,
+                                const std::map<std::string, std::string> &params,
+                                int maxRetries = 3);
 
 private:
     LastFmScrobbler();
@@ -61,20 +56,11 @@ private:
 
     LastFmScrobbler &operator=(const LastFmScrobbler &) = delete;
 
-    std::string sendGetRequest(const std::string &url, int maxRetries = 3);
-
-    std::string sendPostRequest(const std::string &url,
-                                const std::map<std::string, std::string> &params,
-                                int maxRetries = 3);
-
     bool processResponse(const std::string &response);
 
     bool shouldRetry(const std::string &response, int attempt);
 
     void waitBeforeRetry(int attempt);
-
-    std::string buildApiUrl(const std::string &method,
-                            const std::map<std::string, std::string> &params);
 
     CURL *curl;
     std::string lastError;
