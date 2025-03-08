@@ -41,25 +41,25 @@ public:
         return true;
     }
 
-    const std::string &getStoredApiKey() const { return apiKey; }
+    [[nodiscard]] const std::string &getStoredApiKey() const { return apiKey; }
 
-    const std::string &getStoredApiSecret() const { return apiSecret; }
+    [[nodiscard]] const std::string &getStoredApiSecret() const { return apiSecret; }
 
-    const std::string &getSessionKey() const { return sessionKey; }
+    [[nodiscard]] const std::string &getSessionKey() const { return sessionKey; }
 
-    std::string getApiKey();
+    static std::string getApiKey();
 
-    std::string getAuthToken();
+    static std::string getAuthToken();
 
     void openAuthPage(const std::string &token);
 
     std::string getSessionKey(const std::string &token);
 
-    void saveSessionKey(const std::string &sessionKey);
+    static void saveSessionKey(const std::string &sk);
 
-    std::string loadSessionKey();
+    static std::string loadSessionKey();
 
-    std::string getApiSecret();
+    static std::string getApiSecret();
 
 private:
     Credentials() = default;
@@ -67,6 +67,10 @@ private:
     Credentials(const Credentials &) = delete;
 
     Credentials &operator=(const Credentials &) = delete;
+
+    static std::string getFromKeyChain(const std::string& service, const std::string& account);
+
+    static void saveToKeyChain(const std::string& service, const std::string& account, const std::string& value);
 
     bool authenticate();
 
