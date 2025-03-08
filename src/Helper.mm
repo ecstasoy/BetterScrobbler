@@ -31,9 +31,23 @@ double getAppleMusicDuration() {
 
 void extractMetadata(CFDictionaryRef info, std::string &artist, std::string &title, std::string &album,
                      double &duration, double &lastDuration, double &playbackRate) {
-    char artistStr[256] = "Unknown Artist";
-    char titleStr[256] = "Unknown Title";
-    char albumStr[256] = "Unknown Album";
+
+    if (!info) {
+        LOG_DEBUG("Null info dictionary received");
+        return;
+    }
+
+    const char* defaultArtist = "Unknown Artist";
+    const char* defaultTitle = "Unknown Title";
+    const char* defaultAlbum = "Unknown Album";
+
+    char artistStr[256] = {0};
+    char titleStr[256] = {0};
+    char albumStr[256] = {0};
+
+    strncpy(artistStr, defaultArtist, sizeof(artistStr) - 1);
+    strncpy(titleStr, defaultTitle, sizeof(titleStr) - 1);
+    strncpy(albumStr, defaultAlbum, sizeof(albumStr) - 1);
 
     auto artistRef = (CFStringRef) CFDictionaryGetValue(info, CFSTR("kMRMediaRemoteNowPlayingInfoArtist"));
     auto titleRef = (CFStringRef) CFDictionaryGetValue(info, CFSTR("kMRMediaRemoteNowPlayingInfoTitle"));
