@@ -4,6 +4,7 @@
 
 #include "header/LastFmScrobbler.h"
 #include "lib/json.hpp"
+#include "header/Logger.h"
 
 using json = nlohmann::json;
 

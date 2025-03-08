@@ -1,0 +1,3 @@
+/Users/kw/project/BetterScrobbler/build/CMakeFiles/Scrobbler.dir
+/Users/kw/project/BetterScrobbler/build/CMakeFiles/edit_cache.dir
+/Users/kw/project/BetterScrobbler/build/CMakeFiles/rebuild_cache.dir
