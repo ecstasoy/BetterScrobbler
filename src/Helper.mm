@@ -221,7 +221,7 @@ std::string normalizeString(const std::string &input) {
             {"\xE3\x80\x8B", ">"},
             {"\xEF\xBC\x82", "\""},
             {"\xEF\xBC\x87", "'"},
-            {"\xE3\x80\x90", "["}
+            {"\xE3\x80\x90", "["},
             {"\xE3\x80\x91", "]"}
     };
 
