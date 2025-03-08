@@ -47,12 +47,7 @@ public:
 
     const std::string &getSessionKey() const { return sessionKey; }
 
-private:
-    Credentials() = default;
-
-    Credentials(const Credentials &) = delete;
-
-    Credentials &operator=(const Credentials &) = delete;
+    std::string getApiKey();
 
     std::string getAuthToken();
 
@@ -64,15 +59,21 @@ private:
 
     std::string loadSessionKey();
 
-    std::string getApiKey();
-
     std::string getApiSecret();
+
+private:
+    Credentials() = default;
+
+    Credentials(const Credentials &) = delete;
+
+    Credentials &operator=(const Credentials &) = delete;
 
     bool authenticate();
 
     std::string apiKey;
     std::string apiSecret;
     std::string sessionKey;
+    std::string lastError;
 };
 
 #endif //BETTERSCROBBLER_CREDENTIALS_H
