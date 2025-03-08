@@ -175,7 +175,7 @@ public:
 
     void handleFlushedMetadata(std::string &artist, std::string &title, std::string &album) const {
         if (isMusic && artist.empty() && title.empty() && !lastTitle.empty()) {
-            LOG_DEBUG("Metadata will be flushed, using cached values");
+            LOG_DEBUG("Metadata was flushed, using cached values");
             artist = lastArtist;
             title = lastTitle;
             album = lastAlbum;
