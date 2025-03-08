@@ -5,7 +5,10 @@
 #include "header/Config.h"
 #include "header/Logger.h"
 #include "header/Helper.h"
+#include "header/LastFmScrobbler.h"
 #include <iostream>
+#include <regex>
+#include <map>
 
 double getAppleMusicDuration() {
     FILE *pipe = popen("osascript -e 'tell application \"Music\" to get duration of current track'", "r");
@@ -37,7 +40,7 @@ void extractMetadata(CFDictionaryRef info, std::string &artist, std::string &tit
     auto albumRef = (CFStringRef) CFDictionaryGetValue(info, CFSTR("kMRMediaRemoteNowPlayingInfoAlbum"));
     auto durationRef = (CFNumberRef) CFDictionaryGetValue(info, CFSTR("kMRMediaRemoteNowPlayingInfoDuration"));
     auto playbackRateRef = (CFNumberRef) CFDictionaryGetValue(info,
-                                                              CFSTR("kMRMediaRemoteNowPlayingInfoPlaybackRate"));
+                                                                     CFSTR("kMRMediaRemoteNowPlayingInfoPlaybackRate"));
 
     if (artistRef) CFStringGetCString(artistRef, artistStr, sizeof(artistStr), kCFStringEncodingUTF8);
     if (titleRef) CFStringGetCString(titleRef, titleStr, sizeof(titleStr), kCFStringEncodingUTF8);
@@ -70,7 +73,7 @@ double updateElapsedTime(CFDictionaryRef info, double &reportedElapsed, double p
     double now = CFAbsoluteTimeGetCurrent();
 
     // Get the elapsed time from the now playing info
-    auto elapsedTime = (CFNumberRef) CFDictionaryGetValue(info, CFSTR("kMRMediaRemoteNowPlayingInfoElapsedTime"));
+    auto elapsedTime = (CFNumberRef)CFDictionaryGetValue(info, CFSTR("kMRMediaRemoteNowPlayingInfoElapsedTime"));
     if (elapsedTime) {
         CFNumberGetValue(elapsedTime, kCFNumberDoubleType, &reportedElapsed);
     } else {
@@ -83,8 +86,10 @@ double updateElapsedTime(CFDictionaryRef info, double &reportedElapsed, double p
     // greater than 0.5 seconds, use the reported elapsed time
     if (reportedElapsed == lastReportedElapsed) {
         elapsedValue = lastElapsed + (now - lastFetchTime) * playbackRate;
-    } else {
+    } else if (std::fabs(reportedElapsed - lastElapsed) > 0.5) {
         LOG_DEBUG("Seek detected: " + std::to_string(lastElapsed) + " -> " + std::to_string(reportedElapsed));
+        elapsedValue = reportedElapsed;
+    } else {
         elapsedValue = reportedElapsed;
     }
 
@@ -93,4 +98,272 @@ double updateElapsedTime(CFDictionaryRef info, double &reportedElapsed, double p
     lastFetchTime = now;
 
     return elapsedValue;
+}
+
+std::string cleanArtistName(const std::string &artist) {
+    std::vector<std::regex> patterns = {
+            std::regex(R"(\s*-\s*Topic\s*$)", std::regex_constants::icase),    // "The Wake - Topic"
+            std::regex(R"(\s*-\s*Official\s*$)", std::regex_constants::icase), // "Artist Name - Official"
+            std::regex(R"(\s*-\s*Official\s+Channel\s*$)", std::regex_constants::icase), // "Artist - Official Channel"
+            std::regex(R"(\s*VEVO\s*$)", std::regex_constants::icase),         // "ArtistVEVO"
+            std::regex(R"(\s*-\s*VEVO\s*$)", std::regex_constants::icase),     // "Artist - VEVO"
+            std::regex(R"(\s*Official\s*$)", std::regex_constants::icase),      // "Artist Official"
+            std::regex(R"(\s*Music\s*$)", std::regex_constants::icase)         // "Artist Music"
+    };
+
+    std::string cleaned = artist;
+    for (const auto &pattern: patterns) {
+        cleaned = std::regex_replace(cleaned, pattern, "");
+    }
+
+    auto trim = [](std::string &s) {
+        s.erase(0, s.find_first_not_of(" \t\n\r\f\v"));
+        s.erase(s.find_last_not_of(" \t\n\r\f\v") + 1);
+    };
+    trim(cleaned);
+
+    return cleaned;
+}
+
+std::string cleanVideoTitle(std::string title) {
+
+    static const std::vector<std::regex> platformSuffixes = {
+            std::regex(R"((.+?)_哔哩哔哩_bilibili$)"),
+            std::regex(R"((.+?)\s*-\s*YouTube$)"),
+            std::regex(R"((.+?)\s*-\s*优酷$)"),
+            std::regex(R"((.+?)\s*-\s*腾讯视频$)"),
+            std::regex(R"((.+?)\s*-\s*爱奇艺$)"),
+            std::regex(R"((.+?)\s*-\s*抖音$)"),
+            std::regex(R"((.+?)\s*-\s*快手$)"),
+            std::regex(R"((.+?)\s*-\s*西瓜视频$)"),
+            std::regex(R"((.+?)\s*-\s*Bilibili$)"),
+            std::regex(R"((.+?)\s*-\s*B站$)"),
+            std::regex(R"((.+?)\s*-\s*哔哩哔哩$)")
+    };
+
+    static const std::vector<std::regex> suffixes = {
+            std::regex(
+                    R"(\s*[\(\[](?:MV|M/V|Music Video|Official Video|Lyric Video|Audio|Visualizer|Karaoke)[^\)\]]*[\)\]].*$)",
+                    std::regex_constants::icase),
+            std::regex(R"(\s*[\(\[](?:Official|HD|4K|Remaster(?:ed)?|[12]\d{3})[^\)\]]*[\)\]].*$)",
+                       std::regex_constants::icase),
+            std::regex(R"(\s*[\(\[](?:Live|Concert|Tour|Session|Performance)[^\)\]]*[\)\]].*$)",
+                       std::regex_constants::icase),
+            std::regex(R"(\s*[\(\[](?:TV|Show|Episode|Late Night|Television)[^\)\]]*[\)\]].*$)",
+                       std::regex_constants::icase),
+            std::regex(R"(\s*【[^】]*】.*$)"),
+            std::regex(R"(\s*\|\s*.*$)"),
+            std::regex(R"(\s*｜\s*.*$)"),
+            // Date formats
+            std::regex(R"(\s*\d{1,2}[-/]\d{1,2}[-/]\d{2,4}.*$)"),
+            std::regex(R"(\s*[\(\[]\d{1,2}[-/]\d{1,2}[-/]\d{2,4}[\)\]].*$)")
+    };
+
+    for (const auto &pattern: platformSuffixes) {
+        std::smatch matches;
+        if (std::regex_search(title, matches, pattern) && matches.size() > 1) {
+            title = matches[1].str();
+            break;
+        }
+    }
+
+    std::string cleaned = title;
+    for (const auto &suffix: suffixes) {
+        cleaned = std::regex_replace(cleaned, suffix, "");
+    }
+
+    return cleaned;
+}
+
+std::string normalizeString(const std::string &input) {
+    std::string result = input;
+
+    std::map<std::string, std::string> replacements = {
+            {"\xE2\x80\x98", "'"},
+            {"\xE2\x80\x99", "'"},
+            {"\xE2\x80\x9A", "'"},
+            {"\xE2\x80\x9C", "\""},
+            {"\xE2\x80\x9D", "\""},
+            {"\xE2\x80\x9E", "\""},
+            {"\xE2\x80\x93", "-"},
+            {"\xE2\x80\x94", "-"},
+            {"\xE2\x88\x92", "-"},
+            {"\xE2\x80\xA6", "..."},
+            {"\xC2\xBD",     "1/2"},
+            {"\xC2\xBC",     "1/4"},
+            {"\xC2\xBE",     "3/4"},
+            {"\xE3\x80\x82", "."},
+            {"\xEF\xBC\x8C", ","},
+            {"\xEF\xBC\x9B", ";"},
+            {"\xEF\xBC\x9A", ":"},
+            {"\xEF\xBC\x81", "!"},
+            {"\xEF\xBC\x9F", "?"},
+            {"\xE3\x80\x8A", "<"},
+            {"\xE3\x80\x8B", ">"},
+            {"\xEF\xBC\x82", "\""},
+            {"\xEF\xBC\x87", "'"},
+    };
+
+    for (const auto &pair: replacements) {
+        size_t pos = 0;
+        while ((pos = result.find(pair.first, pos)) != std::string::npos) {
+            result.replace(pos, pair.first.length(), pair.second);
+            pos += pair.second.length();
+        }
+    }
+
+    result.erase(std::remove_if(result.begin(), result.end(),
+                                [](unsigned char c) {
+                                    return std::iscntrl(c);
+                                }),
+                 result.end());
+
+    return result;
+}
+
+bool nonMusicDetect(const std::string& videoTitle) {
+    std::vector<std::string> nonMusicKeywords = {
+            "讲座", "演讲", "教程", "课程", "直播", "访谈", "采访", "纪录片",
+            "vlog", "游戏", "实况", "攻略", "解说", "新闻", "资讯", "评测",
+            "开箱", "测评", "教学", "指南", "指导", "教育", "学习", "知识",
+            "lecture", "tutorial", "course", "interview", "documentary", "news",
+            "vlog", "game", "live", "news", "review", "unboxing", "teaching",
+            "guide", "education", "study", "knowledge"
+    };
+
+    std::string lowerTitle = videoTitle;
+    std::transform(lowerTitle.begin(), lowerTitle.end(), lowerTitle.begin(), ::tolower);
+
+    for (const auto &keyword: nonMusicKeywords) {
+        if (lowerTitle.find(keyword) != std::string::npos) {
+            LOG_DEBUG("Detected non-music keyword in title: " + keyword);
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool hasMusicSeparators(const std::string& title) {
+    static const std::vector<std::string> separators = {
+            "-", "「", "『", "[", "(", "<", "《"
+    };
+
+    for (const auto& sep : separators) {
+        if (title.find(sep) != std::string::npos) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool parseStandardFormat(const std::string& title, std::string& outArtist, std::string& outTitle) {
+    static const std::vector<std::regex> patterns = {
+            std::regex(R"((.+?)[-–−﹣－]\s*['"]((.+?))['"])"),           // Artist - 'Title' 或 Artist - "Title"
+
+            std::regex(R"((.+?)(?:\s*[-–−﹣－]\s*)(.+))"),              // Artist - Title
+            std::regex(R"((.+?)[「『](.+?)[」』])"),                    // Artist「Title」或 Artist『Title』
+            std::regex(R"((.+?)[\[|\(](.+?)[\]|\)])"),                // Artist [Title] 或 Artist (Title)
+            std::regex(R"((.+?)[-–−﹣－](.+?)\s*\(\d{4}\))"),          // Artist-Title (Year)
+            std::regex(R"((.+?)[-–−﹣－](.+?)\s*\[.*?\])"),            // Artist-Title [...]
+            std::regex(R"((.+?)『(.+?)』\s*\(\d{4}\))"),              // Artist『Title』(Year)
+            std::regex(R"((.+?)[-–−﹣－](.+?)\s*@.*)"),               // Artist-Title @ ...
+            std::regex(R"((.+?)[-–−﹣－](.+?)\s*\((?:live|LIVE)[^)]*\))"), // Artist-Title (Live ...)
+            std::regex(R"((.+?)[<](.+?)[>])")                         // Artist<Title>
+    };
+
+    for (const auto& pattern : patterns) {
+        std::smatch matches;
+        if (std::regex_search(title, matches, pattern) && matches.size() > 2) {
+            outArtist = matches[1].str();
+            outTitle = matches[2].str();
+            return true;
+        }
+    }
+    return false;
+}
+
+bool tryLastFmSearch(const std::string& title, std::string& outArtist, std::string& outTitle) {
+    if (!title.empty()) {
+        LastFmScrobbler &scrobbler = LastFmScrobbler::getInstance();
+        std::string searchTitle = title;
+        auto matches = scrobbler.bestMatch(searchTitle, searchTitle);  // 使用相同的标题进行搜索
+        if (!matches.empty() && matches.size() >= 2) {
+            outArtist = matches.front();
+            matches.pop_front();
+            outTitle = matches.front();
+            LOG_DEBUG("Found match via Last.fm search: " + outArtist + " - " + outTitle);
+            return true;
+        }
+    }
+
+    LOG_DEBUG("Failed to extract music info from: " + title);
+    return false;
+}
+
+bool extractMusicInfo(const std::string &videoTitle, std::string &outArtist, std::string &outTitle) {
+    auto trim = [](std::string &s) {
+        s.erase(0, s.find_first_not_of(" \t\n\r\f\v"));
+        s.erase(s.find_last_not_of(" \t\n\r\f\v") + 1);
+    };
+
+    if (nonMusicDetect(videoTitle)) {
+        return false;
+    }
+
+    std::string normalizedTitle = normalizeString(videoTitle);
+    std::string cleanedTitle = cleanVideoTitle(normalizedTitle);
+    trim(cleanedTitle);
+
+    if (hasMusicSeparators(cleanedTitle)) {
+        if (parseStandardFormat(cleanedTitle, outArtist, outTitle)) {
+            outTitle = cleanVideoTitle(outTitle);
+            outArtist = cleanArtistName(outArtist);
+
+            outArtist = normalizeString(outArtist);
+            outTitle = normalizeString(outTitle);
+
+            trim(outArtist);
+            trim(outTitle);
+
+            if (!outArtist.empty() && !outTitle.empty() &&
+                outArtist.length() > 1 && outTitle.length() > 1) {
+                LOG_DEBUG("Extracted from standard format: " + outArtist + " - " + outTitle);
+                return true;
+            }
+        }
+    } else {
+        LOG_DEBUG("No common title separator found in: " + cleanedTitle + ", trying Last.fm search");
+    }
+
+    return tryLastFmSearch(cleanedTitle, outArtist, outTitle);
+};
+
+bool isValidMusicContent(const std::string& artist, const std::string& title, const std::string& album) {
+    std::string cleanedArtist = cleanArtistName(artist);
+
+    if (!cleanedArtist.empty() && !title.empty() &&
+        cleanedArtist.length() > 1 && title.length() > 1 &&
+        cleanedArtist != "Unknown Artist" && title != "Unknown Title") {
+        LOG_DEBUG("Valid music content based on metadata: " + cleanedArtist + " - " + title);
+        return true;
+    }
+
+    if (!cleanedArtist.empty() && !title.empty()) {
+        LastFmScrobbler &scrobbler = LastFmScrobbler::getInstance();
+        auto matches = scrobbler.bestMatch(cleanedArtist, const_cast<std::string &>(title));
+        if (!matches.empty()) {
+            LOG_INFO("Content verified as music via Last.fm search");
+            return true;
+        }
+    }
+
+    std::string extractedArtist, extractedTitle;
+    if (extractMusicInfo(title, extractedArtist, extractedTitle)) {
+        LOG_DEBUG("Successfully extracted music info: " + extractedArtist + " - " + extractedTitle);
+        return true;
+    }
+
+    LOG_DEBUG("No music content detected in: " + title);
+    return false;
 }
