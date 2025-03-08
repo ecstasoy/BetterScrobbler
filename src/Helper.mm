@@ -101,7 +101,7 @@ double updateElapsedTime(CFDictionaryRef info, double &reportedElapsed, double p
 }
 
 std::string cleanArtistName(const std::string &artist) {
-    std::vector<std::regex> patterns = {
+    static const std::vector<std::regex> patterns = {
             std::regex(R"(\s*-\s*Topic\s*$)", std::regex_constants::icase),    // "The Wake - Topic"
             std::regex(R"(\s*-\s*Official\s*$)", std::regex_constants::icase), // "Artist Name - Official"
             std::regex(R"(\s*-\s*Official\s+Channel\s*$)", std::regex_constants::icase), // "Artist - Official Channel"
@@ -221,6 +221,11 @@ std::string normalizeString(const std::string &input) {
     return result;
 }
 
+inline void trim(std::string &s) {
+    s.erase(0, s.find_first_not_of(" \t\n\r\f\v"));
+    s.erase(s.find_last_not_of(" \t\n\r\f\v") + 1);
+}
+
 bool nonMusicDetect(const std::string& videoTitle) {
     std::vector<std::string> nonMusicKeywords = {
             "讲座", "演讲", "教程", "课程", "直播", "访谈", "采访", "纪录片",
@@ -302,10 +307,6 @@ bool tryLastFmSearch(const std::string& title, std::string& outArtist, std::stri
 }
 
 bool extractMusicInfo(const std::string &videoTitle, std::string &outArtist, std::string &outTitle) {
-    auto trim = [](std::string &s) {
-        s.erase(0, s.find_first_not_of(" \t\n\r\f\v"));
-        s.erase(s.find_last_not_of(" \t\n\r\f\v") + 1);
-    };
 
     if (nonMusicDetect(videoTitle)) {
         return false;
