@@ -24,6 +24,7 @@ public:
         std::cout << "Usage: " << programName << " [options]\n"
                   << "Options:\n"
                   << "  --daemon    Run as a daemon process\n"
+                  << "  --debug     Show debug message in the console\n"
                   << "  --log=PATH  Specify custom log file path\n"
                   << "  --help      Show this help message\n";
     }
