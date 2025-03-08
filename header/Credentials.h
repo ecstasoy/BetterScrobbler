@@ -41,9 +41,9 @@ public:
         return true;
     }
 
-    const std::string &getApiKey() const { return apiKey; }
+    const std::string &getStoredApiKey() const { return apiKey; }
 
-    const std::string &getApiSecret() const { return apiSecret; }
+    const std::string &getStoredApiSecret() const { return apiSecret; }
 
     const std::string &getSessionKey() const { return sessionKey; }
 
@@ -64,26 +64,11 @@ private:
 
     std::string loadSessionKey();
 
-    bool authenticate() {
+    std::string getApiKey();
 
-        std::string token = getAuthToken();
-        if (token.empty()) {
-            LOG_ERROR("Failed to get Last.fm token");
-            return false;
-        }
+    std::string getApiSecret();
 
-        openAuthPage(token);
-        sessionKey = getSessionKey(token);
-
-        if (sessionKey.empty()) {
-            LOG_ERROR("Authentication failed");
-            return false;
-        }
-
-        saveSessionKey(sessionKey);
-        LOG_INFO("Authentication successful");
-        return true;
-    }
+    bool authenticate();
 
     std::string apiKey;
     std::string apiSecret;
