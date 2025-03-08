@@ -147,6 +147,7 @@ std::string cleanVideoTitle(std::string title) {
 
     static const std::vector<std::regex> platformSuffixes = {
             std::regex(R"((.+?)_哔哩哔哩_bilibili$)"),
+            std::regex(R"((.+?)_哔哩哔哩bilibili$)"),
             std::regex(R"((.+?)\s*-\s*YouTube$)"),
             std::regex(R"((.+?)\s*-\s*优酷$)"),
             std::regex(R"((.+?)\s*-\s*腾讯视频$)"),
@@ -220,6 +221,8 @@ std::string normalizeString(const std::string &input) {
             {"\xE3\x80\x8B", ">"},
             {"\xEF\xBC\x82", "\""},
             {"\xEF\xBC\x87", "'"},
+            {"\xE3\x80\x90", "["}
+            {"\xE3\x80\x91", "]"}
     };
 
     for (const auto &pair: replacements) {
@@ -250,7 +253,7 @@ bool nonMusicDetect(const std::string& videoTitle) {
             "vlog", "游戏", "实况", "攻略", "解说", "新闻", "资讯", "评测",
             "开箱", "测评", "教学", "指南", "指导", "教育", "学习", "知识",
             "lecture", "tutorial", "course", "interview", "documentary", "news",
-            "vlog", "game", "live", "news", "review", "unboxing", "teaching",
+            "vlog", "game", "news", "review", "unboxing", "teaching",
             "guide", "education", "study", "knowledge"
     };
 
