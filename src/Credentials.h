@@ -1,0 +1,8 @@
+//
+// Created by Kunhua Huang on 3/7/25.
+//
+
+#ifndef BETTERSCROBBLER_CREDENTIALS_H
+#define BETTERSCROBBLER_CREDENTIALS_H
+
+#endif //BETTERSCROBBLER_CREDENTIALS_H

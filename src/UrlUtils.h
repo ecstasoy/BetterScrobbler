@@ -1,0 +1,8 @@
+//
+// Created by Kunhua Huang on 3/7/25.
+//
+
+#ifndef BETTERSCROBBLER_URLUTILS_H
+#define BETTERSCROBBLER_URLUTILS_H
+
+#endif //BETTERSCROBBLER_URLUTILS_H
