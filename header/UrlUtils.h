@@ -15,11 +15,14 @@ public:
     static std::string buildApiUrl(const std::string &method,
                             const std::map<std::string, std::string> &params);
 
-    static std::string sendGetRequest(const std::string &url, int maxRetries = 3, CURL *curl = nullptr);
+    static std::string sendGetRequest(const std::string &url, CURL *curl = nullptr, int maxRetries = 3);
 
     static std::string sendPostRequest(const std::string &url,
                                 const std::map<std::string, std::string> &params,
-                                int maxRetries = 3, CURL *curl = nullptr);
+                                CURL *curl = nullptr, int maxRetries = 3);
+
+    static std::string generateSignature(const std::map<std::string, std::string> &params,
+                                         Credentials &credentials);
 
 private:
     static std::string urlEncode(const std::string &input);
@@ -31,9 +34,6 @@ private:
 
     static std::string generateApiSignature(const std::map<std::string, std::string> &params,
                                             const std::string &apiSecret);
-
-    static std::string generateSignature(const std::map<std::string, std::string> &params,
-                                         Credentials &credentials);
 
     static size_t writeCallback(void *ptr, size_t size, size_t nmemb, std::string *data);
 
