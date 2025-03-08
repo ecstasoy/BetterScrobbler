@@ -53,15 +53,15 @@ public:
 
         std::string logMessage = std::string(timeStr) + " [" + levelStr + "] " + message + "\n";
 
-        if (Config::getInstance().isDaemonMode()) {
-            if (logFile.is_open()) {
-                logFile << logMessage;
-                logFile.flush();
-            }
-        } else {
+        if (Config::getInstance().isDaemonMode() && logFile.is_open()) {
+            logFile << logMessage;
+            logFile.flush();
+        }
+
+        if (!Config::getInstance().isDaemonMode()) {
             if (level == Level::ERROR) {
                 std::cerr << logMessage;
-            } else {
+            } else if (level != Level::DEBUG || showDebug) {
                 std::cout << logMessage;
             }
         }
