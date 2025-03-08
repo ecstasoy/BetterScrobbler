@@ -10,6 +10,8 @@ set(SOURCES
         src/MediaRemote.mm
         src/LastFmScrobbler.mm
         src/Helper.mm
+        src/UrlUtils.mm
+        src/Credentials.mm
 )
 
 set(HEADERS
