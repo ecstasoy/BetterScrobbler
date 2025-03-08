@@ -135,7 +135,7 @@ std::string Credentials::getFromKeyChain(const std::string &service, const std::
     if (status == errSecSuccess) {
         std::string result((char *) data, length);
         SecKeychainItemFreeContent(nullptr, data);
-        LOG_INFO(account + " retrieved from Keychain");
+        LOG_DEBUG(account + " retrieved from Keychain");
         return result;
     } else if (status == errSecItemNotFound) {
         LOG_ERROR(account + " not found in Keychain");
@@ -158,7 +158,7 @@ std::string Credentials::getFromKeyChain(const std::string &service, const std::
         if (result.empty()) {
             LOG_ERROR("Failed to retrieve " + account + " from Keychain");
         } else {
-            LOG_INFO(account + " retrieved from Keychain");
+            LOG_DEBUG(account + " retrieved from Keychain");
         }
         return result;
     }
@@ -178,17 +178,20 @@ void Credentials::saveToKeyChain(const std::string &service, const std::string &
     if (status == errSecSuccess) {
         LOG_INFO(account + " saved to Keychain");
         return;
-    }
-
-    LOG_ERROR("Keychain error: " + std::to_string(status));
-
-    std::string command =
-            "security add-generic-password -s \"" + service + "\" -a \"" + account + "\" -w \"" + value + "\"";
-    int result = system(command.c_str());
-
-    if (result == 0) {
-        LOG_INFO(account + " saved to Keychain using CLI fallback");
+    } else if (status == errSecDuplicateItem) {
+        LOG_INFO(account + " already exists in Keychain");
+        return;
     } else {
-        LOG_INFO("Failed to save " + account + " to Keychain using CLI fallback");
+        LOG_ERROR("Keychain error: " + std::to_string(status));
+        std::string command =
+                "security add-generic-password -s \"" + service + "\" -a \"" + account + "\" -w \"" + value + "\"";
+        int result = system(command.c_str());
+
+        if (result == 0) {
+            LOG_INFO(account + " saved to Keychain using CLI fallback");
+        } else {
+            LOG_INFO("Failed to save " + account + " to Keychain using CLI fallback");
+        }
     }
+
 }
