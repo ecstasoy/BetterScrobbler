@@ -37,7 +37,7 @@ void extractMetadata(CFDictionaryRef info, std::string &artist, std::string &tit
     auto albumRef = (CFStringRef) CFDictionaryGetValue(info, CFSTR("kMRMediaRemoteNowPlayingInfoAlbum"));
     auto durationRef = (CFNumberRef) CFDictionaryGetValue(info, CFSTR("kMRMediaRemoteNowPlayingInfoDuration"));
     auto playbackRateRef = (CFNumberRef) CFDictionaryGetValue(info,
-                                                                     CFSTR("kMRMediaRemoteNowPlayingInfoPlaybackRate"));
+                                                              CFSTR("kMRMediaRemoteNowPlayingInfoPlaybackRate"));
 
     if (artistRef) CFStringGetCString(artistRef, artistStr, sizeof(artistStr), kCFStringEncodingUTF8);
     if (titleRef) CFStringGetCString(titleRef, titleStr, sizeof(titleStr), kCFStringEncodingUTF8);
@@ -63,4 +63,34 @@ void extractMetadata(CFDictionaryRef info, std::string &artist, std::string &tit
     artist = artistStr;
     title = titleStr;
     album = albumStr;
+}
+
+double updateElapsedTime(CFDictionaryRef info, double &reportedElapsed, double playbackRate, double &elapsedValue,
+                         double &lastElapsed, double &lastFetchTime, double &lastReportedElapsed) {
+    double now = CFAbsoluteTimeGetCurrent();
+
+    // Get the elapsed time from the now playing info
+    auto elapsedTime = (CFNumberRef) CFDictionaryGetValue(info, CFSTR("kMRMediaRemoteNowPlayingInfoElapsedTime"));
+    if (elapsedTime) {
+        CFNumberGetValue(elapsedTime, kCFNumberDoubleType, &reportedElapsed);
+    } else {
+        // If the elapsed time is not available, use the last known value
+        reportedElapsed = lastElapsed;
+    }
+
+    // If the reported elapsed time is the same as the last reported value, calculate the elapsed time based on the playback rate
+    // Seek detection: if the difference between the reported elapsed time and the last known elapsed time is
+    // greater than 0.5 seconds, use the reported elapsed time
+    if (reportedElapsed == lastReportedElapsed) {
+        elapsedValue = lastElapsed + (now - lastFetchTime) * playbackRate;
+    } else {
+        LOG_DEBUG("Seek detected: " + std::to_string(lastElapsed) + " -> " + std::to_string(reportedElapsed));
+        elapsedValue = reportedElapsed;
+    }
+
+    lastElapsed = elapsedValue;
+    lastReportedElapsed = reportedElapsed;
+    lastFetchTime = now;
+
+    return elapsedValue;
 }
