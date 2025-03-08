@@ -39,7 +39,7 @@ private:
     Config() {
         appName = "Scrobbler";
         logPath = "/tmp/scrobbler.log";
-        keychainService = "com.scrobbler.credential";
+        keychainService = "com.scrobbler.credentials";
         keychainApiKeyAccount = "API_KEY";
         keychainSecretAccount = "SHARED_SECRET";
         keychainSessionKeyAccount = "SESSION_KEY";
