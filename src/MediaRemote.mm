@@ -6,6 +6,7 @@
 #include <dispatch/dispatch.h>
 #include <dlfcn.h>
 #include <header/MediaRemote.h>
+#include <header/LastFmScrobbler.h>
 #include <header/Logger.h>
 #include <header/Helper.h>
 
@@ -85,6 +86,8 @@ public:
     }
 
     void processNowPlayingInfo(CFDictionaryRef info) {
+        auto &scrobbler = LastFmScrobbler::getInstance();
+
         std::string artist, title, album;
         double durationValue = lastDuration;
         double elapsedValue = lastElapsed;
@@ -113,7 +116,7 @@ public:
 
         updateElapsedTime(info, reportedElapsed, playbackRateValue, elapsedValue, lastElapsed, lastFetchTime,
                           lastReportedElapsed);
-        sendNowPlayingUpdate(scrobbleArtist, scrobbleTitle, isMusic, album, lastNowPlayingSent, playbackRateValue);
+        scrobbler.sendNowPlayingUpdate(scrobbleArtist, scrobbleTitle, isMusic, album, lastNowPlayingSent, playbackRateValue);
         handlePlaybackStateChange(currentTitle, scrobbleArtist, scrobbleTitle, album, playbackRateValue, elapsedValue);
     }
 
@@ -150,7 +153,7 @@ public:
 
         if (isMusic) {
             LOG_DEBUG("Resetting scrobble state for new track");
-            resetScrobbleState(lastElapsed, lastDuration, lastFetchTime, beginTimeStamp, hasScrobbled);
+            scrobbler.resetScrobbleState(lastElapsed, lastDuration, lastFetchTime, beginTimeStamp, hasScrobbled);
             if (scrobbleTitle.empty()) {
                 LOG_ERROR("Empty scrobble title detected!");
                 return;
@@ -203,7 +206,7 @@ public:
             beginTimeStamp = static_cast<int>(std::time(nullptr));
         }
 
-        if (shouldScrobble(elapsedValue, lastDuration, playbackRateValue, isMusic, hasScrobbled)) {
+        if (scrobbler.shouldScrobble(elapsedValue, lastDuration, playbackRateValue, isMusic, hasScrobbled)) {
             scrobbler.scrobble(scrobbleArtist, scrobbleTitle, album, lastDuration, beginTimeStamp);
             hasScrobbled = true;
         }
