@@ -4,7 +4,9 @@
 
 #ifndef BETTERSCROBBLER_LASTFMSCROBBLER_H
 #define BETTERSCROBBLER_LASTFMSCROBBLER_H
+
 #include <string>
+#include <curl/curl.h>
 
 class LastFmScrobbler {
 public:
@@ -49,5 +51,35 @@ public:
     std::string getApiKey();
 
     std::string getApiSecret();
+
+private:
+    LastFmScrobbler();
+
+    ~LastFmScrobbler();
+
+    LastFmScrobbler(const LastFmScrobbler &) = delete;
+
+    LastFmScrobbler &operator=(const LastFmScrobbler &) = delete;
+
+    std::string sendGetRequest(const std::string &url, int maxRetries = 3);
+
+    std::string sendPostRequest(const std::string &url,
+                                const std::map<std::string, std::string> &params,
+                                int maxRetries = 3);
+
+    bool processResponse(const std::string &response);
+
+    bool shouldRetry(const std::string &response, int attempt);
+
+    void waitBeforeRetry(int attempt);
+
+    std::string buildApiUrl(const std::string &method,
+                            const std::map<std::string, std::string> &params);
+
+    CURL *curl;
+    std::string lastError;
+    std::chrono::system_clock::time_point lastRequestTime;
+    static constexpr int MIN_REQUEST_INTERVAL_MS = 250;
+
 };
 #endif //BETTERSCROBBLER_LASTFMSCROBBLER_H
