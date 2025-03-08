@@ -13,14 +13,14 @@ set(SOURCES
 )
 
 set(HEADERS
-        src/MediaRemote.h
-        src/LastFmScrobbler.h
-        src/Helper.h
-        src/Config.h
-        src/Logger.h
-        src/CommandLine.h
-        src/Credentials.h
-        src/UrlUtils.h
+        header/MediaRemote.h
+        header/LastFmScrobbler.h
+        header/Helper.h
+        header/Config.h
+        header/Logger.h
+        header/CommandLine.h
+        header/Credentials.h
+        header/UrlUtils.h
 )
 
 find_package(CURL REQUIRED)
