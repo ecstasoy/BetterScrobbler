@@ -4,11 +4,13 @@
 
 #include "header/credentials.h"
 #include "header/UrlUtils.h"
-#include "header/LastFmScrobbler.h"
 #include "lib/json.hpp"
 #include <string>
 #include <map>
 #include <Appkit/Appkit.h>
+#import <Security/Security.h>
+#import <Security/SecKeychain.h>
+#import <Security/SecKeychainItem.h>
 
 using json = nlohmann::json;
 
@@ -83,4 +85,110 @@ std::string Credentials::getSessionKey(const std::string &token) {
         LOG_ERROR(lastError);
     }
     return "";
+}
+
+void Credentials::saveSessionKey(const std::string &sk) {
+    saveToKeyChain(Config::getInstance().getKeychainService(),
+                   Config::getInstance().getKeychainSessionKeyAccount(),
+                   sk);
+    LOG_INFO("Session key saved to keychain");
+}
+
+std::string Credentials::loadSessionKey() {
+    std::string sessionKey = getFromKeyChain(Config::getInstance().getKeychainService(),
+                                             Config::getInstance().getKeychainSessionKeyAccount());
+    if (sessionKey.empty()) {
+        LOG_ERROR("Failed to load session key from keychain");
+    }
+    return sessionKey;
+}
+
+std::string Credentials::getApiKey() {
+    std::string apiKey = getFromKeyChain("com.scrobbler.credentials", "API_KEY");
+    if (apiKey.empty()) {
+        std::cout << "🔑 Enter your Last.fm API Key: ";
+        std::getline(std::cin, apiKey);
+        saveToKeyChain("com.scrobbler.credentials", "API_KEY", apiKey);
+    }
+    return apiKey;
+}
+
+std::string Credentials::getApiSecret() {
+    std::string apiSecret = getFromKeyChain("com.scrobbler.credentials", "SHARED_SECRET");
+    if (apiSecret.empty()) {
+        std::cout << "🔑 Enter your Last.fm API Secret: ";
+        std::getline(std::cin, apiSecret);
+        saveToKeyChain("com.scrobbler.credentials", "SHARED_SECRET", apiSecret);
+    }
+    return apiSecret;
+}
+
+std::string Credentials::getFromKeyChain(const std::string &service, const std::string &account) {
+    void *data = nullptr;
+    UInt32 length = 0;
+
+    OSStatus status = SecKeychainFindGenericPassword(nullptr,
+                                                     (UInt32) service.length(), service.c_str(),
+                                                     (UInt32) account.length(), account.c_str(),
+                                                     &length, &data, nullptr);
+
+    if (status == errSecSuccess) {
+        std::string result((char *) data, length);
+        SecKeychainItemFreeContent(nullptr, data);
+        LOG_INFO(account + " retrieved from Keychain");
+        return result;
+    } else if (status == errSecItemNotFound) {
+        LOG_ERROR(account + " not found in Keychain");
+        std::string command = "security find-generic-password -s \"" + service + "\" -a \"" + account + "\" -w";
+        FILE *pipe = popen(command.c_str(), "r");
+        if (!pipe) {
+            LOG_ERROR("Failed to execute security command");
+            return "";
+        }
+        char buffer[128];
+        std::string result;
+        while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
+            result += buffer;
+        }
+        pclose(pipe);
+
+        // Trim newline
+        result.erase(result.find_last_not_of('\n') + 1);
+
+        if (result.empty()) {
+            LOG_ERROR("Failed to retrieve " + account + " from Keychain");
+        } else {
+            LOG_INFO(account + " retrieved from Keychain");
+        }
+        return result;
+    }
+
+    LOG_ERROR("Keychain error: " + std::to_string(status));
+
+    return "";
+}
+
+void Credentials::saveToKeyChain(const std::string &service, const std::string &account, const std::string &value) {
+    OSStatus status = SecKeychainAddGenericPassword(nullptr,
+                                                    (UInt32) service.length(), service.c_str(),
+                                                    (UInt32) account.length(), account.c_str(),
+                                                    (UInt32) value.length(), value.c_str(),
+                                                    nullptr);
+
+    if (status == errSecSuccess) {
+        LOG_INFO(account + " saved to Keychain");
+        return;
+    }
+
+    LOG_ERROR("Keychain error: " + std::to_string(status));
+
+    std::string command =
+            "security add-generic-password -s \"" + service + "\" -a \"" + account + "\" -w \"" + value + "\"";
+    int result = system(command.c_str());
+
+    if (result == 0) {
+        LOG_INFO(account + " saved to Keychain using CLI fallback");
+    } else {
+        LOG_INFO("Failed to save " + account + " to Keychain using CLI fallback");
+    }
 }
