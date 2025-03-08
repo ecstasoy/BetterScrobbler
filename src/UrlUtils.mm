@@ -27,7 +27,7 @@ std::string UrlUtils::urlEncode(const std::string &input) {
 }
 
 std::string UrlUtils::buildUrl(const std::string &baseUrl,
-                            const std::map<std::string, std::string> &params) {
+                               const std::map<std::string, std::string> &params) {
     std::string url = baseUrl;
     bool first = true;
 
@@ -52,7 +52,7 @@ std::string UrlUtils::md5(const std::string &input) {
 }
 
 std::string UrlUtils::generateApiSignature(const std::map<std::string, std::string> &params,
-                                        const std::string &apiSecret) {
+                                           const std::string &apiSecret) {
 
     std::vector<std::pair<std::string, std::string>> sortedParams(params.begin(), params.end());
     std::sort(sortedParams.begin(), sortedParams.end());
@@ -69,7 +69,7 @@ std::string UrlUtils::generateApiSignature(const std::map<std::string, std::stri
 }
 
 std::string UrlUtils::generateSignature(const std::map<std::string, std::string> &params,
-                             Credentials &credentials) {
+                                        Credentials &credentials) {
     std::string shared_secret = credentials.getApiSecret();
 
     std::vector<std::pair<std::string, std::string>> sortedParams(params.begin(), params.end());
@@ -93,7 +93,7 @@ size_t UrlUtils::writeCallback(void *ptr, size_t size, size_t nmemb, std::string
 }
 
 std::string UrlUtils::buildApiUrl(const std::string &method,
-                                         const std::map<std::string, std::string> &params) {
+                                  const std::map<std::string, std::string> &params) {
     auto &credentials = Credentials::getInstance();
     std::map<std::string, std::string> allParams = params;
     allParams["method"] = method;
@@ -109,11 +109,16 @@ std::string UrlUtils::buildApiUrl(const std::string &method,
     return url;
 }
 
-std::string UrlUtils::sendGetRequest(const std::string &url, int maxRetries, CURL *curl) {
+std::string UrlUtils::sendGetRequest(const std::string &url, CURL *curl, int maxRetries) {
+    bool needsCleanup = false;
     if (!curl) {
-        lastError = "CURL not initialized";
-        LOG_ERROR(lastError);
-        return "";
+        curl = curl_easy_init();
+        if (!curl) {
+            lastError = "Failed to initialize CURL";
+            LOG_ERROR(lastError);
+            return "";
+        }
+        needsCleanup = true;
     }
 
     auto now = std::chrono::system_clock::now();
@@ -124,50 +129,68 @@ std::string UrlUtils::sendGetRequest(const std::string &url, int maxRetries, CUR
                 std::chrono::milliseconds(MIN_REQUEST_INTERVAL_MS - elapsed));
     }
 
-    for (int attempt = 1; attempt <= maxRetries; ++attempt) {
-        std::string response;
-        curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, writeCallback);
-        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
-        curl_easy_setopt(curl, CURLOPT_USERAGENT, "Scrobbler/1.0");
+    try {
+        for (int attempt = 1; attempt <= maxRetries; ++attempt) {
+            std::string response;
+            curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+            curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, writeCallback);
+            curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
+            curl_easy_setopt(curl, CURLOPT_USERAGENT, "Scrobbler/1.0");
 
-        CURLcode res = curl_easy_perform(curl);
-        lastRequestTime = std::chrono::system_clock::now();
+            CURLcode res = curl_easy_perform(curl);
+            lastRequestTime = std::chrono::system_clock::now();
 
-        if (res != CURLE_OK) {
-            lastError = "CURL error: " + std::string(curl_easy_strerror(res));
-            LOG_ERROR(lastError);
+            if (res != CURLE_OK) {
+                lastError = "CURL error: " + std::string(curl_easy_strerror(res));
+                LOG_ERROR(lastError);
 
-            if (shouldRetry(response, attempt)) {
-                waitBeforeRetry(attempt);
-                continue;
+                if (shouldRetry(response, attempt)) {
+                    waitBeforeRetry(attempt);
+                    continue;
+                }
+                return "";
             }
-            return "";
-        }
 
-        if (!processResponse(response)) {
-            if (shouldRetry(response, attempt)) {
-                waitBeforeRetry(attempt);
-                continue;
+            if (!processResponse(response)) {
+                if (shouldRetry(response, attempt)) {
+                    waitBeforeRetry(attempt);
+                    continue;
+                }
+                return "";
             }
-            return "";
-        }
 
-        return response;
+            if (needsCleanup) {
+                curl_easy_cleanup(curl);
+            }
+
+            return response;
+        }
+    } catch (const std::exception &e) {
+        lastError = "Exception: " + std::string(e.what());
+        LOG_ERROR(lastError);
     }
 
     lastError = "Max retries exceeded";
     LOG_ERROR(lastError);
+
+    if (needsCleanup && curl) {
+        curl_easy_cleanup(curl);
+    }
     return "";
 }
 
 std::string UrlUtils::sendPostRequest(const std::string &url,
-                                             const std::map<std::string, std::string> &params,
-                                             int maxRetries, CURL *curl) {
+                                      const std::map<std::string, std::string> &params,
+                                      CURL *curl, int maxRetries) {
+    bool needsCleanup = false;
     if (!curl) {
-        lastError = "CURL not initialized";
-        LOG_ERROR(lastError);
-        return "";
+        curl = curl_easy_init();
+        if (!curl) {
+            lastError = "Failed to initialize CURL";
+            LOG_ERROR(lastError);
+            return "";
+        }
+        needsCleanup = true;
     }
 
     auto now = std::chrono::system_clock::now();
@@ -178,7 +201,6 @@ std::string UrlUtils::sendPostRequest(const std::string &url,
                 std::chrono::milliseconds(MIN_REQUEST_INTERVAL_MS - elapsed));
     }
 
-    // 构建 POST 数据
     std::string postFields;
     for (const auto &param: params) {
         if (!postFields.empty()) postFields += "&";
@@ -186,39 +208,48 @@ std::string UrlUtils::sendPostRequest(const std::string &url,
                       UrlUtils::urlEncode(param.second);
     }
 
-//    LOG_DEBUG("POST fields: " + postFields);
+    LOG_DEBUG("POST fields: " + postFields);
 
-    for (int attempt = 1; attempt <= maxRetries; ++attempt) {
-        std::string response;
-        curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, postFields.c_str());
-        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, writeCallback);
-        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
-        curl_easy_setopt(curl, CURLOPT_USERAGENT, "Scrobbler/1.0");
+    try {
+        for (int attempt = 1; attempt <= maxRetries; ++attempt) {
+            std::string response;
+            curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+            curl_easy_setopt(curl, CURLOPT_POSTFIELDS, postFields.c_str());
+            curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, writeCallback);
+            curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
+            curl_easy_setopt(curl, CURLOPT_USERAGENT, "Scrobbler/1.0");
 
-        CURLcode res = curl_easy_perform(curl);
-        lastRequestTime = std::chrono::system_clock::now();
+            CURLcode res = curl_easy_perform(curl);
+            lastRequestTime = std::chrono::system_clock::now();
 
-        if (res != CURLE_OK) {
-            lastError = "CURL error: " + std::string(curl_easy_strerror(res));
-            LOG_ERROR(lastError);
+            if (res != CURLE_OK) {
+                lastError = "CURL error: " + std::string(curl_easy_strerror(res));
+                LOG_ERROR(lastError);
 
-            if (shouldRetry(response, attempt)) {
-                waitBeforeRetry(attempt);
-                continue;
+                if (shouldRetry(response, attempt)) {
+                    waitBeforeRetry(attempt);
+                    continue;
+                }
+                return "";
             }
-            return "";
-        }
 
-        if (!processResponse(response)) {
-            if (shouldRetry(response, attempt)) {
-                waitBeforeRetry(attempt);
-                continue;
+            if (!processResponse(response)) {
+                if (shouldRetry(response, attempt)) {
+                    waitBeforeRetry(attempt);
+                    continue;
+                }
+                return "";
             }
-            return "";
-        }
 
-        return response;
+            return response;
+        }
+    } catch (const std::exception &e) {
+        lastError = "Exception: " + std::string(e.what());
+        LOG_ERROR(lastError);
+    }
+
+    if (needsCleanup && curl) {
+        curl_easy_cleanup(curl);
     }
 
     lastError = "Max retries exceeded";
@@ -270,3 +301,6 @@ void UrlUtils::waitBeforeRetry(int attempt) {
     int delay = std::min(1000 * (1 << (attempt - 1)), 30000);
     std::this_thread::sleep_for(std::chrono::milliseconds(delay));
 }
+
+std::string UrlUtils::lastError;
+std::chrono::system_clock::time_point UrlUtils::lastRequestTime;
