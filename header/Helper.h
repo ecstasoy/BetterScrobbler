@@ -12,16 +12,8 @@
 void extractMetadata(CFDictionaryRef info, std::string &artist, std::string &title, std::string &album,
                      double &duration, double &reportedElapsed, double &playbackRate);
 
-void resetScrobbleState(double &lastElapsed, double &lastDuration, double &lastFetchTime,
-                        int &beginTimeStamp, bool &hasScrobbled);
-
 double updateElapsedTime(CFDictionaryRef info, double &reportedElapsed, double playbackRate, double &elapsedValue,
                          double &lastElapsed, double &lastFetchTime, double &lastReportedElapsed);
-
-void sendNowPlayingUpdate(const std::string &artist, const std::string &title, bool isMusic,
-                          const std::string &album, double &lastNowPlayingSent, double playbackRate);
-
-bool shouldScrobble(double elapsed, double duration, double playbackRate, bool isMusic, bool hasScrobbled);
 
 bool isValidMusicContent(const std::string &artist, const std::string &title, const std::string &album);
 
@@ -30,5 +22,9 @@ bool extractMusicInfo(const std::string &videoTitle, std::string &outArtist, std
 std::string cleanArtistName(const std::string &artist);
 
 std::string normalizeString(const std::string &input);
+
+std::string toLower(std::string str);
+
+int levenshteinDistance(const std::string &s1, const std::string &s2);
 
 #endif //BETTERSCROBBLER_HELPER_H
