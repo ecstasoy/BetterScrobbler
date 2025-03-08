@@ -3,15 +3,14 @@
 //
 
 #include "header/LastFmScrobbler.h"
-#include "lib/json.hpp"
+#include "../lib/json.hpp"
 #include "header/Logger.h"
+#include "header/Credentials.h"
+#include "header/UrlUtils.h"
+#include "header/Helper.h"
+#include <map>
 
 using json = nlohmann::json;
-
-// Internal namespace for private functions
-namespace {
-
-}
 
 LastFmScrobbler::LastFmScrobbler() : curl(nullptr) {
     init();
@@ -38,3 +37,290 @@ void LastFmScrobbler::cleanup() {
     }
 }
 
+bool LastFmScrobbler::sendNowPlaying(const std::string &artist, const std::string &track, const std::string &album,
+                                     double duration) {
+    auto &credentials = Credentials::getInstance();
+
+    std::string sessionKey = credentials.loadSessionKey();
+    if (sessionKey.empty()) {
+        lastError = "No session key available";
+        LOG_ERROR(lastError);
+        return false;
+    }
+
+    std::string safeArtist = artist;
+    std::string safeTrack = track;
+    std::string safeAlbum = album;
+
+    auto cleanString = [](std::string &s) {
+        s.erase(std::remove_if(s.begin(), s.end(),
+                               [](unsigned char c) {
+                                   return std::iscntrl(c);
+                               }),
+                s.end());
+    };
+
+    cleanString(safeArtist);
+    cleanString(safeTrack);
+    cleanString(safeAlbum);
+
+    if (safeTrack.empty()) {
+        LOG_ERROR("Track title is empty after cleaning");
+        return false;
+    }
+
+    std::map<std::string, std::string> params = {
+            {"method", "track.updateNowPlaying"},
+            {"artist", safeArtist},
+            {"track",  safeTrack},
+            {"sk",     sessionKey}
+    };
+
+    if (!safeAlbum.empty()) {
+        params["album"] = safeAlbum;
+    }
+    if (duration > 0) {
+        params["duration"] = std::to_string((int) duration);
+    }
+
+    LOG_DEBUG("Sending now playing - Artist: '" + safeArtist + "', Track: '" + safeTrack + "'");
+
+    std::map<std::string, std::string> allParams = params;
+    allParams["api_key"] = credentials.getApiKey();
+    std::string apiSig = UrlUtils::generateSignature(allParams, credentials);
+    allParams["api_sig"] = apiSig;
+    allParams["format"] = "json";
+
+    std::string url = "https://ws.audioscrobbler.com/2.0/";
+    std::string response = UrlUtils::sendPostRequest(url, allParams, curl);
+
+    if (response.empty()) {
+        LOG_ERROR("Empty response from Last.fm");
+        return false;
+    }
+
+    return true;
+}
+
+void LastFmScrobbler::sendNowPlayingUpdate(const std::string &artist, const std::string &title, bool isMusic,
+                                           const std::string &album, double &lastNowPlayingSent, double playbackRate) {
+    if (playbackRate == 0.0) {
+        return;
+    }
+
+    if (!isMusic) {
+        return;
+    }
+
+    double now = CFAbsoluteTimeGetCurrent();
+    if (now - lastNowPlayingSent < 30.0) {
+        return;
+    }
+
+    std::string cleanedArtist = cleanArtistName(artist);
+
+    LOG_DEBUG("Sending now playing update");
+    lastNowPlayingSent = now;
+    LastFmScrobbler::getInstance().sendNowPlaying(cleanedArtist, title, album, 0.0 /* duration placeh. */);
+}
+
+bool LastFmScrobbler::scrobble(const std::string &artist, const std::string &track, const std::string &album,
+                               double duration, int timeStamp) {
+    auto &credentials = Credentials::getInstance();
+
+    std::string sessionKey = credentials.loadSessionKey();
+    if (sessionKey.empty()) {
+        lastError = "No session key available";
+        LOG_ERROR(lastError);
+        return false;
+    }
+
+    if (timeStamp == 0) {
+        timeStamp = (int) std::time(nullptr);
+    }
+
+    std::string safeArtist = cleanArtistName(artist);
+    std::string safeTrack = track;
+    std::string safeAlbum = album;
+
+    // 移除不可打印字符和控制字符
+    auto cleanString = [](std::string &s) {
+        s.erase(std::remove_if(s.begin(), s.end(),
+                               [](unsigned char c) {
+                                   return std::iscntrl(c);
+                               }),
+                s.end());
+    };
+
+    cleanString(safeTrack);
+    cleanString(safeAlbum);
+
+    std::map<std::string, std::string> params = {
+            {"method",    "track.scrobble"},
+            {"artist",    safeArtist},
+            {"track",     safeTrack},
+            {"timestamp", std::to_string(timeStamp)},
+            {"sk",        sessionKey}
+    };
+
+    if (!safeAlbum.empty()) {
+        params["album"] = safeAlbum;
+    }
+    if (duration > 0) {
+        params["duration"] = std::to_string((int) duration);
+    }
+
+    std::map<std::string, std::string> allParams = params;
+    allParams["api_key"] = credentials.getApiKey();
+    std::string apiSig = UrlUtils::generateSignature(allParams, credentials);
+    allParams["api_sig"] = apiSig;
+    allParams["format"] = "json";
+
+    std::string url = "https://ws.audioscrobbler.com/2.0/";
+    std::string response = UrlUtils::sendPostRequest(url, allParams, curl);
+
+    if (!response.empty()) {
+        LOG_INFO("Scrobbled: " + artist + " - " + track +
+                 (album.empty() ? "" : " [" + album + "]"));
+        return true;
+    }
+    return false;
+}
+
+void LastFmScrobbler::resetScrobbleState(double &lastElapsed, double &lastDuration, double &lastFetchTime,
+                                         int &beginTimeStamp, bool &hasScrobbled) {
+    hasScrobbled = false;
+    lastElapsed = 0.0;
+    lastDuration = 0.0;
+    lastFetchTime = CFAbsoluteTimeGetCurrent();
+    beginTimeStamp = static_cast<int>(std::time(nullptr));
+}
+
+bool LastFmScrobbler::shouldScrobble(double elapsed, double duration, double playbackRate, bool isMusic, bool hasScrobbled) {
+    if (!isMusic) return false;
+    if (hasScrobbled) return false;
+    if (playbackRate <= 0.0) return false;
+
+    double progressPercentage = (duration > 0.0) ? (elapsed / duration) * 100.0 : 0.0;
+
+    return (progressPercentage > 50.0 || elapsed > 240.0);
+}
+
+std::string LastFmScrobbler::search(const std::string &artist, const std::string &track) {
+    auto &credentials = Credentials::getInstance();
+
+    std::string safeArtist = artist;
+    std::string safeTrack = track;
+
+    auto cleanString = [](std::string &s) {
+        s.erase(std::remove_if(s.begin(), s.end(),
+                               [](unsigned char c) {
+                                   return !std::isprint(c) || std::iscntrl(c);
+                               }),
+                s.end());
+    };
+
+    cleanString(safeArtist);
+    cleanString(safeTrack);
+
+    std::map<std::string, std::string> params;
+    params["method"] = "track.search";
+
+    if (!safeArtist.empty()) {
+        params["artist"] = safeArtist;
+    }
+    if (!safeTrack.empty()) {
+        params["track"] = safeTrack;
+    }
+
+    std::map<std::string, std::string> allParams = params;
+    allParams["api_key"] = credentials.getApiKey();
+    std::string apiSig = UrlUtils::generateSignature(allParams, credentials);
+    allParams["api_sig"] = apiSig;
+    allParams["format"] = "json";
+
+    std::string url = "https://ws.audioscrobbler.com/2.0/";
+    std::string response = UrlUtils::sendPostRequest(url, allParams, curl);
+
+    if (response.empty()) {
+        LOG_ERROR("Empty response from Last.fm search");
+        return "{}";
+    }
+
+    return response;
+}
+
+std::list<std::string> LastFmScrobbler::bestMatch(std::string &artist, std::string &track) {
+    std::list<std::string> result;
+    LOG_INFO("Searching for best match for: " + artist + " - " + track);
+
+    auto searchAndMatch = [&](const std::string &searchArtist, const std::string &searchTrack) -> bool {
+        json j;
+        try {
+            std::string response = LastFmScrobbler::search(searchArtist, searchTrack);
+            if (response == "{}") {
+                LOG_DEBUG("Empty search response");
+                return false;
+            }
+            j = json::parse(response);
+        } catch (const std::exception &e) {
+            LOG_ERROR("JSON Parsing failed: " + std::string(e.what()));
+            return false;
+        }
+
+        if (!j.contains("results") ||
+            !j["results"].contains("trackmatches") ||
+            !j["results"]["trackmatches"].contains("track") ||
+            j["results"]["trackmatches"]["track"].empty()) {
+            LOG_DEBUG("No track matches found in JSON response");
+            return false;
+        }
+
+        std::string bestArtist, bestTrack;
+        int bestArtistDistance = 100, bestTrackDistance = 100;
+
+        std::string artistLower = toLower(searchArtist);
+        std::string trackLower = toLower(searchTrack);
+
+        for (const auto &candidate: j["results"]["trackmatches"]["track"]) {
+            if (!candidate.contains("artist") || !candidate.contains("name")) continue;
+
+            std::string foundArtist = candidate["artist"].get<std::string>();
+            std::string foundTrack = candidate["name"].get<std::string>();
+
+            std::string foundArtistLower = toLower(foundArtist);
+            std::string foundTrackLower = toLower(foundTrack);
+
+            int artistDistance = levenshteinDistance(artistLower, foundArtistLower);
+            int trackDistance = levenshteinDistance(trackLower, foundTrackLower);
+
+            LOG_DEBUG("Comparing with: " + foundArtist + " - " + foundTrack +
+                     " | Artist Distance: " + std::to_string(artistDistance) +
+                     " | Track Distance: " + std::to_string(trackDistance));
+
+            if (artistDistance < bestArtistDistance || trackDistance < bestTrackDistance) {
+                bestArtist = foundArtist;
+                bestTrack = foundTrack;
+                bestArtistDistance = artistDistance;
+                bestTrackDistance = trackDistance;
+            }
+        }
+
+        if (bestArtistDistance <= 3 && bestTrackDistance <= 3) {
+            LOG_DEBUG("Best fuzzy match found: " + bestArtist + " - " + bestTrack);
+            result.push_back(bestArtist);
+            result.push_back(bestTrack);
+            return true;
+        }
+
+        LOG_DEBUG("No good fuzzy match found (distances too large)");
+        return false;
+    };
+
+    // Try search with extracted values first
+    if (searchAndMatch(artist, track)) {
+        return result;
+    }
+
+    return result;
+}
