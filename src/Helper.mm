@@ -84,6 +84,7 @@ void extractMetadata(CFDictionaryRef info, std::string &artist, std::string &tit
 
 double updateElapsedTime(CFDictionaryRef info, double &reportedElapsed, double playbackRate, double &elapsedValue,
                          double &lastElapsed, double &lastFetchTime, double &lastReportedElapsed) {
+    constexpr double SEEK_THRESHOLD = 0.5;
     double now = CFAbsoluteTimeGetCurrent();
 
     // Get the elapsed time from the now playing info
@@ -95,12 +96,15 @@ double updateElapsedTime(CFDictionaryRef info, double &reportedElapsed, double p
         reportedElapsed = lastElapsed;
     }
 
+    bool isReportedTimeUnchanged = (reportedElapsed == lastReportedElapsed);
+    bool isSeekDetected = std::fabs(reportedElapsed - lastElapsed) > SEEK_THRESHOLD;
+
     // If the reported elapsed time is the same as the last reported value, calculate the elapsed time based on the playback rate
     // Seek detection: if the difference between the reported elapsed time and the last known elapsed time is
     // greater than 0.5 seconds, use the reported elapsed time
-    if (reportedElapsed == lastReportedElapsed) {
+    if (isReportedTimeUnchanged) {
         elapsedValue = lastElapsed + (now - lastFetchTime) * playbackRate;
-    } else if (std::fabs(reportedElapsed - lastElapsed) > 0.5) {
+    } else if (isSeekDetected) {
         LOG_DEBUG("Seek detected: " + std::to_string(lastElapsed) + " -> " + std::to_string(reportedElapsed));
         elapsedValue = reportedElapsed;
     } else {
