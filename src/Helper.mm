@@ -310,7 +310,7 @@ bool tryLastFmSearch(const std::string& title, std::string& outArtist, std::stri
     if (!title.empty()) {
         LastFmScrobbler &scrobbler = LastFmScrobbler::getInstance();
         std::string searchTitle = title;
-        auto matches = scrobbler.bestMatch(searchTitle, searchTitle);  // 使用相同的标题进行搜索
+        auto matches = scrobbler.bestMatch(searchTitle, searchTitle);
         if (!matches.empty() && matches.size() >= 2) {
             outArtist = matches.front();
             matches.pop_front();
@@ -385,4 +385,26 @@ bool isValidMusicContent(const std::string& artist, const std::string& title, co
 
     LOG_DEBUG("No music content detected in: " + title);
     return false;
+}
+
+std::string toLower(std::string str) {
+    std::transform(str.begin(), str.end(), str.begin(), ::tolower);
+    return str;
+}
+
+int levenshteinDistance(const std::string &s1, const std::string &s2) {
+    const size_t len1 = s1.size(), len2 = s2.size();
+    std::vector<std::vector<int>> dp(len1 + 1, std::vector<int>(len2 + 1));
+
+    for (size_t i = 0; i <= len1; ++i) dp[i][0] = i;
+    for (size_t i = 0; i <= len2; ++i) dp[0][i] = i;
+
+    for (size_t i = 1; i <= len1; ++i) {
+        for (size_t j = 1; j <= len2; ++j) {
+            dp[i][j] = std::min({dp[i - 1][j] + 1, dp[i][j - 1] + 1,
+                                 dp[i - 1][j - 1] + (s1[i - 1] == s2[j - 1] ? 0 : 1)});
+        }
+    }
+
+    return dp[len1][len2];
 }
