@@ -215,7 +215,7 @@ std::string LastFmScrobbler::search(const std::string &artist, const std::string
     auto cleanString = [](std::string &s) {
         s.erase(std::remove_if(s.begin(), s.end(),
                                [](unsigned char c) {
-                                   return !std::isprint(c) || std::iscntrl(c);
+                                   return std::iscntrl(c);
                                }),
                 s.end());
     };
