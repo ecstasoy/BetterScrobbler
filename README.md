@@ -11,7 +11,7 @@ Foobar2000's scrobble plugin was deprecated, Apple Music does not support built-
 All the workarounds may not be worth the hassle now. BetterScrobbler is a CLI scrobbler that scrobbles ANY music playing on you Mac. And yes, it even works for your browser! (not always)
 
 ## Preparation (easy)
-It is **important** to do this before everything!
+It is **important** to do this before everything.
 1. Open [this page](https://www.last.fm/api/account/create) to create an API account
 2. You only need to fill in the first two column. For "Application name", fill in whatever you want!
    
@@ -32,3 +32,150 @@ brew tap ecstasoy/scrobbler
 brew install scrobbler
 ```
 3. Wait for the compilation and done!
+
+## Basic Usage
+### First time running setup:
+1. Run the scrobbler in terminal:
+```
+scrobbler
+```
+2. Prepare your API key and shared secret. Copy-paste your credentials when prompted:
+3. These credentials will be stored in macOS' Keychain and secured by system-level protection.
+4. If credentials are correct, your default browser will open and bring you to this page:
+   ![Image](https://github.com/user-attachments/assets/97b3ecba-e9ed-4390-b5c0-5b50d4a1415f)
+5. The application name displayed here will be anything you filled when creating API account.
+6. Click 'Yes, allow access'.
+7. Press ENTER.
+
+### Running as foreground CLI program:
+1. Run the scrobbler in terminal:
+```
+scrobbler
+```
+2. If the setup is correct, the program should be running perfectly:
+```
+[INFO] Scrobbler is running...
+```
+4. Information displayed on the console includes:
+   - Information of the song currently playing/paused **at the foreground**.
+   - The playback state of the song
+     ```
+     [INFO] ▶️ Playing: the Mountain Goats - Against Pollution (Jordan Lake Sessions) []  (369.941000 sec)
+     ```
+     ```
+     [INFO] ⏸ Paused: the Mountain Goats - Against Pollution (Jordan Lake Sessions) []  (369.941000 sec)
+     ```
+   - Notification when the song is scrobbled to Last.fm
+     ```
+     [INFO] Scrobbled: the Mountain Goats - Against Pollution (Jordan Lake Sessions)
+     ```
+   - If you are playing video:
+     - The music info extracted from the video, if possible
+        ```
+        [INFO] Using extracted music info: the Mountain Goats - Against Pollution (Jordan Lake Sessions)
+        ```
+     - Best effort to detect and skip non-music video contect
+       ```
+       [INFO] Searching for best match for: 养暹罗就跟养了条狗一样 - 养暹罗就跟养了条狗一样
+       [INFO] Skipping non-music content
+       ```
+     - Mistakes are still happening all the time, please be aware when playing videos especially non-music ones.
+     - Please refer to the section below.
+
+### Running it in the background (Recommended)
+1. Use HomeBrew services to start the scrobbler automatically on login:
+```
+brew services start scrobbler
+```
+2. Other commands:
+```
+# Stop the service
+brew services stop scrobbler
+
+# Restart the service
+brew services restart scrobbler
+
+# Check status
+brew services info scrobbler
+```
+### Running it in the background (Daemon)
+1. Run the program as a daemon process directly:
+```
+scrobbler --daemon
+```
+2. To stop:
+```
+pkill scrobbler
+```
+
+## Command Line Options
+### Reference:
+```
+        std::cout << "Usage: Scrobbler [options]\n"
+                  << "Options:\n"
+                  << "  --daemon    Run as a daemon process\n"
+                  << "  --debug     Show debug message in the console\n"
+                  << "  --log=PATH  Specify custom log file path\n"
+                  << "  --help      Show this help message\n";
+```
+### Examples:
+```
+# Run in background
+scrobbler --daemon
+
+# Enable debug logging
+scrobbler --debug
+
+# Custom log file location
+scrobbler --log=/Users/you/scrobbler.log
+
+# Show help
+scrobbler --help
+```
+
+## Logs
+- Default path: /var/log/scrobbler.log
+- You can watch the log in real-time:
+```
+tail -f /var/log/scrobbler.log
+```
+
+## Wrong track info?
+For audio, metadata are usually formatted properly and easy to retrieve. So it is unlikely to happen when audio is playing. 
+
+For video, although BetterScrobbler tries parse and verify track information from various sources, the current parsing methods are still too naive to handle the clusterfucked naming traditions of music videos on YouTube, Bilibili, etc..
+
+If you notice something is wrong, please make sure the video title is formatted as one of the followings:
+1. Basic Formats:
+```
+Artist - Title
+Artist: Title
+```
+2. Quoted Formats:
+```
+Artist - "Title"
+Artist - 'Title'
+```
+3. Brackets Formats:
+```
+Artist「Title」
+Artist『Title』
+Artist [Title]
+Artist (Title)
+Artist <Title>
+```
+4. Formats above with Additional Info:
+```
+Artist - Title (2024)          # Year
+Artist - Title [Official MV]   # Additional tags
+Artist - Title @ Live          # Location/event
+Artist - Title (Live at...)    # Live performance
+```
+**Notes:**
+- The separator between artist and title can be various dashes: -, –, −, ﹣, －
+- Spaces around the separator are optional
+- The program will automatically clean up:
+   - Platform suffixes (e.g., "- YouTube", "- bilibili")
+   - Common tags (MV, Official Video, HD, etc.)
+   - Date information
+   - Extra metadata
