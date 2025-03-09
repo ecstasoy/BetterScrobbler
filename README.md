@@ -8,7 +8,7 @@ Are you sick of the lack of reliable scrobblers on macOS?
 
 Foobar2000's scrobble plugin was deprecated, Apple Music does not support built-in scrobbling, and there is absolutely no way to scrobble on Netease Music's desktop application.
 
-All the workarounds may not be worth the haddle now. BetterScrobbler is a CLI scrobbler that scrobbles ANY music playing on you Mac. And yes, it even works for your browser! (not always)
+All the workarounds may not be worth the hassle now. BetterScrobbler is a CLI scrobbler that scrobbles ANY music playing on you Mac. And yes, it even works for your browser! (not always)
 
 ## Preparation (easy)
 It is **important** to do this before everything!
