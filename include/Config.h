@@ -1,7 +1,3 @@
-//
-// Created by Kunhua Huang on 3/7/25.
-//
-
 #ifndef BETTERSCROBBLER_CONFIG_H
 #define BETTERSCROBBLER_CONFIG_H
 
@@ -16,24 +12,24 @@ public:
 
     void setDaemonMode(bool enabled) { isDaemon = enabled; }
 
-    bool isDaemonMode() const { return isDaemon; }
+    [[nodiscard]] bool isDaemonMode() const { return isDaemon; }
 
-    const std::string &getLogPath() const { return logPath; }
+    [[nodiscard]] const std::string &getLogPath() const { return logPath; }
 
     void setLogPath(const std::string &path) { logPath = path; }
 
-    const std::string &getAppName() const { return appName; }
+    [[nodiscard]] const std::string &getAppName() const { return appName; }
 
     void setAppName(const std::string &name) { appName = name; }
 
     // Credential storage configuration
-    const std::string &getKeychainService() const { return keychainService; }
+    [[nodiscard]] const std::string &getKeychainService() const { return keychainService; }
 
-    const std::string &getKeychainApiKeyAccount() const { return keychainApiKeyAccount; }
+    [[nodiscard]] const std::string &getKeychainApiKeyAccount() const { return keychainApiKeyAccount; }
 
-    const std::string &getKeychainSecretAccount() const { return keychainSecretAccount; }
+    [[nodiscard]] const std::string &getKeychainSecretAccount() const { return keychainSecretAccount; }
 
-    const std::string &getKeychainSessionKeyAccount() const { return keychainSessionKeyAccount; }
+    [[nodiscard]] const std::string &getKeychainSessionKeyAccount() const { return keychainSessionKeyAccount; }
 
 private:
     Config() {

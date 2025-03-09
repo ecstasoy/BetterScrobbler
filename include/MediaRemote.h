@@ -1,7 +1,3 @@
-//
-// Created by Kunhua Huang on 3/7/25.
-//
-
 #ifndef BETTERSCROBBLER_MEDIAREMOTE_H
 #define BETTERSCROBBLER_MEDIAREMOTE_H
 

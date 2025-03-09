@@ -1,7 +1,3 @@
-//
-// Created by Kunhua Huang on 3/7/25.
-//
-
 #ifndef BETTERSCROBBLER_URLUTILS_H
 #define BETTERSCROBBLER_URLUTILS_H
 
@@ -13,13 +9,13 @@
 class UrlUtils {
 public:
     static std::string buildApiUrl(const std::string &method,
-                            const std::map<std::string, std::string> &params);
+                                   const std::map<std::string, std::string> &params);
 
     static std::string sendGetRequest(const std::string &url, CURL *curl = nullptr, int maxRetries = 3);
 
     static std::string sendPostRequest(const std::string &url,
-                                const std::map<std::string, std::string> &params,
-                                CURL *curl = nullptr, int maxRetries = 3);
+                                       const std::map<std::string, std::string> &params,
+                                       CURL *curl = nullptr, int maxRetries = 3);
 
     static std::string generateSignature(const std::map<std::string, std::string> &params,
                                          Credentials &credentials);

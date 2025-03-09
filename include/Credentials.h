@@ -1,7 +1,3 @@
-//
-// Created by Kunhua Huang on 3/7/25.
-//
-
 #ifndef BETTERSCROBBLER_CREDENTIALS_H
 #define BETTERSCROBBLER_CREDENTIALS_H
 
@@ -68,9 +64,9 @@ private:
 
     Credentials &operator=(const Credentials &) = delete;
 
-    static std::string getFromKeyChain(const std::string& service, const std::string& account);
+    static std::string getFromKeyChain(const std::string &service, const std::string &account);
 
-    static void saveToKeyChain(const std::string& service, const std::string& account, const std::string& value);
+    static void saveToKeyChain(const std::string &service, const std::string &account, const std::string &value);
 
     bool authenticate();
 
