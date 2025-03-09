@@ -11,9 +11,10 @@ void extractMetadata(CFDictionaryRef info, std::string &artist, std::string &tit
 double updateElapsedTime(CFDictionaryRef info, double &reportedElapsed, double playbackRate, double &elapsedValue,
                          double &lastElapsed, double &lastFetchTime, double &lastReportedElapsed);
 
-bool isValidMusicContent(const std::string &artist, const std::string &title, const std::string &album);
+bool isValidContent(std::string &artist, std::string &title);
 
-bool extractMusicInfo(const std::string &videoTitle, std::string &outArtist, std::string &outTitle);
+bool
+extractMusicInfo(const std::string &artist, const std::string &title, std::string &outArtist, std::string &outTitle);
 
 std::string cleanArtistName(const std::string &artist);
 

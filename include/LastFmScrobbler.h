@@ -36,12 +36,6 @@ public:
                   double duration = 0.0,
                   int timeStamp = 0);
 
-    void resetScrobbleState(double &lastElapsed,
-                            double &lastDuration,
-                            double &lastFetchTime,
-                            int &beginTimeStamp,
-                            bool &hasScrobbled);
-
     bool shouldScrobble(double elapsed,
                         double duration,
                         double playbackRate,
@@ -51,7 +45,7 @@ public:
     // Search
     std::string search(const std::string &artist, const std::string &track);
 
-    std::list<std::string> bestMatch(std::string &artist, std::string &track);
+    std::list<std::string> bestMatch(const std::string &artist, const std::string &track);
 
 private:
     LastFmScrobbler();
