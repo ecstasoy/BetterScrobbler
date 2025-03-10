@@ -161,6 +161,9 @@ std::string cleanVideoTitle(std::string title) {
     };
 
     static const std::vector<std::regex> suffixes = {
+            std::regex(R"(^\s*\[[^\]]*\]\s*)"),
+            std::regex(R"(\s*\[[^\]]*\].*$)"),
+
             std::regex(
                     R"(\s*[\(\[](?:MV|M/V|Music Video|Official Video|Lyric Video|Audio|Visualizer|Karaoke)[^\)\]]*[\)\]].*$)",
                     std::regex_constants::icase),
@@ -235,7 +238,7 @@ std::string normalizeString(const std::string &input) {
 
     result.erase(std::remove_if(result.begin(), result.end(),
                                 [](unsigned char c) {
-                                    return std::iscntrl(c);
+                                    return std::iswcntrl(c);
                                 }),
                  result.end());
 
@@ -288,6 +291,7 @@ bool parseStandardFormat(const std::string &title, std::string &outArtist, std::
             std::regex(R"((.+?)[-–−﹣－]\s*['"]((.+?))['"])"),           // Artist - 'Title' 或 Artist - "Title"
 
             std::regex(R"((.+?)(?:\s*[-–−﹣－]\s*)(.+))"),              // Artist - Title
+            std::regex(R"((.+?)\s+['"](.+?)['"])"),              // Artist "Title" 或 Artist 'Title'
             std::regex(R"((.+?)[「『](.+?)[」』])"),                    // Artist「Title」或 Artist『Title』
             std::regex(R"((.+?)[\[|\(](.+?)[\]|\)])"),                // Artist [Title] 或 Artist (Title)
             std::regex(R"((.+?)[-–−﹣－](.+?)\s*\(\d{4}\))"),          // Artist-Title (Year)
@@ -329,8 +333,8 @@ tryLastFmSearch(const std::string &artist, const std::string &title, std::string
 
 bool isRealArtist(const std::string &artist) {
     std::map<std::string, std::string> params = {
-            {"method", "artist.getInfo"},
-            {"artist", artist},
+            {"method",      "artist.getInfo"},
+            {"artist",      artist},
             {"autocorrect", "0"}
     };
 
@@ -366,13 +370,15 @@ extractMusicInfo(const std::string &artist, const std::string &title, std::strin
     std::string cleanedTitle = cleanVideoTitle(normalizedTitle);
     trim(cleanedTitle);
 
+    std::cout << "[INFO] Cleaned title: " << cleanedTitle << std::endl;
+
     if (hasMusicSeparators(cleanedTitle)) {
         if (parseStandardFormat(cleanedTitle, outArtist, outTitle)) {
-            outTitle = cleanVideoTitle(outTitle);
-            outArtist = cleanArtistName(outArtist);
-
             outArtist = normalizeString(outArtist);
             outTitle = normalizeString(outTitle);
+
+            outTitle = cleanVideoTitle(outTitle);
+            outArtist = cleanArtistName(outArtist);
 
             trim(outArtist);
             trim(outTitle);
