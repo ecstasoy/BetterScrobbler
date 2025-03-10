@@ -1,13 +1,9 @@
-//
-// Created by Kunhua Huang on 3/7/25.
-//
-
 #import <CoreFoundation/CoreFoundation.h>
-#import "header/MediaRemote.h"
-#import "header/Config.h"
-#import "header/Logger.h"
-#import "header/CommandLine.h"
-#import "header/Credentials.h"
+#import "include/MediaRemote.h"
+#import "include/Config.h"
+#import "include/Logger.h"
+#import "include/CommandLine.h"
+#import "include/Credentials.h"
 
 int main(int argc, char *argv[]) {
     @autoreleasepool {
