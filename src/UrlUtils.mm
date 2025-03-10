@@ -1,6 +1,6 @@
-#include "header/UrlUtils.h"
-#include "header/Credentials.h"
-#include <lib/json.hpp>
+#include "include/UrlUtils.h"
+#include "include/Credentials.h"
+#include "../lib/json.hpp"
 #include <curl/curl.h>
 #include <string>
 #include <map>
