@@ -1,14 +1,14 @@
-//
-// Created by Kunhua Huang on 3/7/25.
-//
-
-#include "header/Config.h"
-#include "header/Logger.h"
-#include "header/Helper.h"
-#include "header/LastFmScrobbler.h"
+#include "include/Config.h"
+#include "include/Logger.h"
+#include "include/Helper.h"
+#include "include/LastFmScrobbler.h"
+#include "include/UrlUtils.h"
+#include "../lib/json.hpp"
 #include <iostream>
 #include <regex>
 #include <map>
+
+using json = nlohmann::json;
 
 double getAppleMusicDuration() {
     FILE *pipe = popen("osascript -e 'tell application \"Music\" to get duration of current track'", "r");
@@ -37,9 +37,9 @@ void extractMetadata(CFDictionaryRef info, std::string &artist, std::string &tit
         return;
     }
 
-    const char* defaultArtist = "Unknown Artist";
-    const char* defaultTitle = "Unknown Title";
-    const char* defaultAlbum = "Unknown Album";
+    const char *defaultArtist = "Unknown Artist";
+    const char *defaultTitle = "Unknown Title";
+    const char *defaultAlbum = "Unknown Album";
 
     char artistStr[256] = {0};
     char titleStr[256] = {0};
@@ -54,7 +54,7 @@ void extractMetadata(CFDictionaryRef info, std::string &artist, std::string &tit
     auto albumRef = (CFStringRef) CFDictionaryGetValue(info, CFSTR("kMRMediaRemoteNowPlayingInfoAlbum"));
     auto durationRef = (CFNumberRef) CFDictionaryGetValue(info, CFSTR("kMRMediaRemoteNowPlayingInfoDuration"));
     auto playbackRateRef = (CFNumberRef) CFDictionaryGetValue(info,
-                                                                     CFSTR("kMRMediaRemoteNowPlayingInfoPlaybackRate"));
+                                                              CFSTR("kMRMediaRemoteNowPlayingInfoPlaybackRate"));
 
     if (artistRef) CFStringGetCString(artistRef, artistStr, sizeof(artistStr), kCFStringEncodingUTF8);
     if (titleRef) CFStringGetCString(titleRef, titleStr, sizeof(titleStr), kCFStringEncodingUTF8);
@@ -88,7 +88,7 @@ double updateElapsedTime(CFDictionaryRef info, double &reportedElapsed, double p
     double now = CFAbsoluteTimeGetCurrent();
 
     // Get the elapsed time from the now playing info
-    auto elapsedTime = (CFNumberRef)CFDictionaryGetValue(info, CFSTR("kMRMediaRemoteNowPlayingInfoElapsedTime"));
+    auto elapsedTime = (CFNumberRef) CFDictionaryGetValue(info, CFSTR("kMRMediaRemoteNowPlayingInfoElapsedTime"));
     if (elapsedTime) {
         CFNumberGetValue(elapsedTime, kCFNumberDoubleType, &reportedElapsed);
     } else {
@@ -247,7 +247,7 @@ inline void trim(std::string &s) {
     s.erase(s.find_last_not_of(" \t\n\r\f\v") + 1);
 }
 
-bool nonMusicDetect(const std::string& videoTitle) {
+bool nonMusicDetect(const std::string &videoTitle) {
     std::vector<std::string> nonMusicKeywords = {
             "讲座", "演讲", "教程", "课程", "直播", "访谈", "采访", "纪录片",
             "vlog", "游戏", "实况", "攻略", "解说", "新闻", "资讯", "评测",
@@ -270,12 +270,12 @@ bool nonMusicDetect(const std::string& videoTitle) {
     return false;
 }
 
-bool hasMusicSeparators(const std::string& title) {
+bool hasMusicSeparators(const std::string &title) {
     static const std::vector<std::string> separators = {
             "-", "「", "『", "[", "(", "<", "《"
     };
 
-    for (const auto& sep : separators) {
+    for (const auto &sep: separators) {
         if (title.find(sep) != std::string::npos) {
             return true;
         }
@@ -283,7 +283,7 @@ bool hasMusicSeparators(const std::string& title) {
     return false;
 }
 
-bool parseStandardFormat(const std::string& title, std::string& outArtist, std::string& outTitle) {
+bool parseStandardFormat(const std::string &title, std::string &outArtist, std::string &outTitle) {
     static const std::vector<std::regex> patterns = {
             std::regex(R"((.+?)[-–−﹣－]\s*['"]((.+?))['"])"),           // Artist - 'Title' 或 Artist - "Title"
 
@@ -298,7 +298,7 @@ bool parseStandardFormat(const std::string& title, std::string& outArtist, std::
             std::regex(R"((.+?)[<](.+?)[>])")                         // Artist<Title>
     };
 
-    for (const auto& pattern : patterns) {
+    for (const auto &pattern: patterns) {
         std::smatch matches;
         if (std::regex_search(title, matches, pattern) && matches.size() > 2) {
             outArtist = matches[1].str();
@@ -309,11 +309,11 @@ bool parseStandardFormat(const std::string& title, std::string& outArtist, std::
     return false;
 }
 
-bool tryLastFmSearch(const std::string& title, std::string& outArtist, std::string& outTitle) {
-    if (!title.empty()) {
+bool
+tryLastFmSearch(const std::string &artist, const std::string &title, std::string &outArtist, std::string &outTitle) {
+    if (!title.empty() && !artist.empty()) {
         LastFmScrobbler &scrobbler = LastFmScrobbler::getInstance();
-        std::string searchTitle = title;
-        auto matches = scrobbler.bestMatch(searchTitle, searchTitle);
+        auto matches = scrobbler.bestMatch(artist, title);
         if (!matches.empty() && matches.size() >= 2) {
             outArtist = matches.front();
             matches.pop_front();
@@ -327,13 +327,42 @@ bool tryLastFmSearch(const std::string& title, std::string& outArtist, std::stri
     return false;
 }
 
-bool extractMusicInfo(const std::string &videoTitle, std::string &outArtist, std::string &outTitle) {
+bool isRealArtist(const std::string &artist) {
+    std::map<std::string, std::string> params = {
+            {"method", "artist.getInfo"},
+            {"artist", artist},
+            {"autocorrect", "0"}
+    };
 
-    if (nonMusicDetect(videoTitle)) {
+    std::string url = UrlUtils::buildApiUrl("artist.getInfo", params);
+    std::string response = UrlUtils::sendGetRequest(url);
+
+    try {
+        json j = json::parse(response);
+        return !j.contains("error");
+    } catch (...) {
+        return false;
+    }
+}
+
+bool
+extractMusicInfo(const std::string &artist, const std::string &title, std::string &outArtist, std::string &outTitle) {
+
+    if (nonMusicDetect(title)) {
         return false;
     }
 
-    std::string normalizedTitle = normalizeString(videoTitle);
+    std::string normalizedArtist = normalizeString(artist);
+    std::string cleanedArtist = cleanArtistName(normalizedArtist);
+
+    if (!cleanedArtist.empty() && isRealArtist(cleanedArtist)) {
+        LOG_DEBUG("Found valid artist on Last.fm: " + cleanedArtist);
+        if (tryLastFmSearch(cleanedArtist, title, outArtist, outTitle)) {
+            return true;
+        }
+    }
+
+    std::string normalizedTitle = normalizeString(title);
     std::string cleanedTitle = cleanVideoTitle(normalizedTitle);
     trim(cleanedTitle);
 
@@ -350,43 +379,42 @@ bool extractMusicInfo(const std::string &videoTitle, std::string &outArtist, std
 
             if (!outArtist.empty() && !outTitle.empty() &&
                 outArtist.length() > 1 && outTitle.length() > 1) {
-                LOG_DEBUG("Extracted from standard format: " + outArtist + " - " + outTitle);
-                return true;
+                if (isRealArtist(outArtist)) {
+                    LOG_DEBUG("Found valid artist on Last.fm: " + outArtist);
+                    std::string verifiedArtist, verifiedTitle;
+                    if (tryLastFmSearch(outArtist, outTitle, verifiedArtist, verifiedTitle)) {
+                        outArtist = verifiedArtist;
+                        outTitle = verifiedTitle;
+                        return true;
+                    }
+                } else {
+                    LOG_DEBUG("Invalid artist name: " + outArtist);
+                }
             }
         }
     } else {
         LOG_DEBUG("No common title separator found in: " + cleanedTitle + ", trying Last.fm search");
     }
 
-    return tryLastFmSearch(cleanedTitle, outArtist, outTitle);
+    return tryLastFmSearch(cleanedArtist, cleanedTitle, outArtist, outTitle);
 };
 
-bool isValidMusicContent(const std::string& artist, const std::string& title, const std::string& album) {
+bool isValidContent(std::string &artist, std::string &title) {
     std::string cleanedArtist = cleanArtistName(artist);
-
-    if (!cleanedArtist.empty() && !title.empty() &&
-        cleanedArtist.length() > 1 && title.length() > 1 &&
-        cleanedArtist != "Unknown Artist" && title != "Unknown Title") {
-        LOG_DEBUG("Valid music content based on metadata: " + cleanedArtist + " - " + title);
-        return true;
-    }
 
     if (!cleanedArtist.empty() && !title.empty()) {
         LastFmScrobbler &scrobbler = LastFmScrobbler::getInstance();
         auto matches = scrobbler.bestMatch(cleanedArtist, const_cast<std::string &>(title));
-        if (!matches.empty()) {
-            LOG_INFO("Content verified as music via Last.fm search");
+        if (!matches.empty() && matches.size() >= 2) {
+            artist = matches.front();
+            matches.pop_front();
+            title = matches.front();
+            LOG_INFO("Content verified as valid via Last.fm search");
             return true;
         }
     }
 
-    std::string extractedArtist, extractedTitle;
-    if (extractMusicInfo(title, extractedArtist, extractedTitle)) {
-        LOG_DEBUG("Successfully extracted music info: " + extractedArtist + " - " + extractedTitle);
-        return true;
-    }
-
-    LOG_DEBUG("No music content detected in: " + title);
+    LOG_INFO("Failed to verify valid content");
     return false;
 }
 
