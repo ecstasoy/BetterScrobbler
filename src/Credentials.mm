@@ -1,10 +1,6 @@
-//
-// Created by Kunhua Huang on 3/8/25.
-//
-
-#include "header/credentials.h"
-#include "header/UrlUtils.h"
-#include "lib/json.hpp"
+#include "include/Credentials.h"
+#include "include/UrlUtils.h"
+#include "../lib/json.hpp"
 #include <string>
 #include <map>
 #include <Appkit/Appkit.h>
@@ -76,9 +72,9 @@ std::string Credentials::getSessionKey(const std::string &token) {
     try {
         json j = json::parse(response);
         if (j.contains("session") && j["session"].contains("key")) {
-            std::string sessionKey = j["session"]["key"];
-            saveSessionKey(sessionKey);
-            return sessionKey;
+            std::string sk = j["session"]["key"];
+            saveSessionKey(sk);
+            return sk;
         }
     } catch (const std::exception &e) {
         lastError = "Failed to parse session key: " + std::string(e.what());
