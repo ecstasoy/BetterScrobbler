@@ -1,13 +1,9 @@
-//
-// Created by Kunhua Huang on 3/7/25.
-//
-
-#include "header/LastFmScrobbler.h"
+#include "include/LastFmScrobbler.h"
+#include "include/Logger.h"
+#include "include/Credentials.h"
+#include "include/UrlUtils.h"
+#include "include/Helper.h"
 #include "../lib/json.hpp"
-#include "header/Logger.h"
-#include "header/Credentials.h"
-#include "header/UrlUtils.h"
-#include "header/Helper.h"
 #include <map>
 
 using json = nlohmann::json;
@@ -55,7 +51,7 @@ bool LastFmScrobbler::sendNowPlaying(const std::string &artist, const std::strin
     auto cleanString = [](std::string &s) {
         s.erase(std::remove_if(s.begin(), s.end(),
                                [](unsigned char c) {
-                                   return std::iscntrl(c);
+                                   return std::iswcntrl(c);
                                }),
                 s.end());
     };
@@ -143,11 +139,10 @@ bool LastFmScrobbler::scrobble(const std::string &artist, const std::string &tra
     std::string safeTrack = track;
     std::string safeAlbum = album;
 
-    // 移除不可打印字符和控制字符
     auto cleanString = [](std::string &s) {
         s.erase(std::remove_if(s.begin(), s.end(),
                                [](unsigned char c) {
-                                   return std::iscntrl(c);
+                                   return std::iswcntrl(c);
                                }),
                 s.end());
     };
@@ -187,19 +182,10 @@ bool LastFmScrobbler::scrobble(const std::string &artist, const std::string &tra
     return false;
 }
 
-void LastFmScrobbler::resetScrobbleState(double &lastElapsed, double &lastDuration, double &lastFetchTime,
-                                         int &beginTimeStamp, bool &hasScrobbled) {
-    hasScrobbled = false;
-    lastElapsed = 0.0;
-    lastDuration = 0.0;
-    lastFetchTime = CFAbsoluteTimeGetCurrent();
-    beginTimeStamp = static_cast<int>(std::time(nullptr));
-}
-
-bool LastFmScrobbler::shouldScrobble(double elapsed, double duration, double playbackRate, bool isMusic, bool hasScrobbled) {
+bool
+LastFmScrobbler::shouldScrobble(double elapsed, double duration, double playbackRate, bool isMusic, bool hasScrobbled) {
     if (!isMusic) return false;
     if (hasScrobbled) return false;
-    if (playbackRate <= 0.0) return false;
 
     double progressPercentage = (duration > 0.0) ? (elapsed / duration) * 100.0 : 0.0;
 
@@ -215,7 +201,7 @@ std::string LastFmScrobbler::search(const std::string &artist, const std::string
     auto cleanString = [](std::string &s) {
         s.erase(std::remove_if(s.begin(), s.end(),
                                [](unsigned char c) {
-                                   return std::iscntrl(c);
+                                   return std::iswcntrl(c);
                                }),
                 s.end());
     };
@@ -250,7 +236,7 @@ std::string LastFmScrobbler::search(const std::string &artist, const std::string
     return response;
 }
 
-std::list<std::string> LastFmScrobbler::bestMatch(std::string &artist, std::string &track) {
+std::list<std::string> LastFmScrobbler::bestMatch(const std::string &artist, const std::string &track) {
     std::list<std::string> result;
     LOG_INFO("Searching for best match for: " + artist + " - " + track);
 
@@ -283,20 +269,29 @@ std::list<std::string> LastFmScrobbler::bestMatch(std::string &artist, std::stri
         std::string trackLower = toLower(searchTrack);
 
         for (const auto &candidate: j["results"]["trackmatches"]["track"]) {
-            if (!candidate.contains("artist") || !candidate.contains("name")) continue;
+            if (!candidate.contains("artist") || !candidate.contains("name") ||
+                !candidate.contains("listeners")) continue;
 
             std::string foundArtist = candidate["artist"].get<std::string>();
             std::string foundTrack = candidate["name"].get<std::string>();
+            int listeners = std::stoi(candidate["listeners"].get<std::string>());
 
             std::string foundArtistLower = toLower(foundArtist);
             std::string foundTrackLower = toLower(foundTrack);
+
+            // Sorry if no one wants to listen to your true music
+            if (listeners < 200) {
+                LOG_DEBUG("Skipping low-listener track: " + foundArtist + " - " +
+                          foundTrack + " (listeners: " + std::to_string(listeners) + ")");
+                continue;
+            }
 
             int artistDistance = levenshteinDistance(artistLower, foundArtistLower);
             int trackDistance = levenshteinDistance(trackLower, foundTrackLower);
 
             LOG_DEBUG("Comparing with: " + foundArtist + " - " + foundTrack +
-                     " | Artist Distance: " + std::to_string(artistDistance) +
-                     " | Track Distance: " + std::to_string(trackDistance));
+                      " | Artist Distance: " + std::to_string(artistDistance) +
+                      " | Track Distance: " + std::to_string(trackDistance));
 
             if (artistDistance < bestArtistDistance || trackDistance < bestTrackDistance) {
                 bestArtist = foundArtist;
