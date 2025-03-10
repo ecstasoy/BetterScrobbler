@@ -16,10 +16,10 @@ void TrackManager::processTitleChange(const std::string &artist, const std::stri
     }
 
     bool isMusic = false;
+    extractedArtist = artist;
+    extractedTitle = title;
 
     if (isFromMusicPlatform) {
-        extractedArtist = artist;
-        extractedTitle = title;
         isMusic = true;
         LOG_DEBUG("Using platform metadata: " + extractedArtist + " - " + extractedTitle);
     } else if (extractMusicInfo(artist, title, extractedArtist, extractedTitle)) {
