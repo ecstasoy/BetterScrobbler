@@ -1,14 +1,11 @@
-//
-// Created by Kunhua Huang on 3/7/25.
-//
-
 #include <CoreFoundation/CoreFoundation.h>
 #include <dispatch/dispatch.h>
 #include <dlfcn.h>
-#include <header/MediaRemote.h>
-#include <header/LastFmScrobbler.h>
-#include <header/Logger.h>
-#include <header/Helper.h>
+#include <include/MediaRemote.h>
+#include <include/LastFmScrobbler.h>
+#include <include/Logger.h>
+#include <include/Helper.h>
+#include<include/TrackManager.h>
 
 typedef void (*MRMediaRemoteGetNowPlayingInfo_t)(dispatch_queue_t, void(^)(CFDictionaryRef));
 
@@ -18,22 +15,7 @@ public:
     MRMediaRemoteGetNowPlayingInfo_t MRMediaRemoteGetNowPlayingInfo = nullptr;
     dispatch_source_t timer = nullptr;
     LastFmScrobbler &scrobbler = LastFmScrobbler::getInstance();
-
-    std::string lastTitle;
-    std::string lastArtist;
-    std::string lastAlbum;
-    std::string lastPlaybackState;
-    std::string extractedTitle;
-    std::string extractedArtist;
-    double lastFetchTime = 0.0;
-    double lastDuration = 0.0;
-    double lastElapsed = 0.0;
-    double lastReportedElapsed = 0.0;
-    double lastNowPlayingSent = 0.0;
-    int beginTimeStamp = 0;
-    bool hasScrobbled = false;
-    bool isMusic = true;
-    bool isFromMusicPlatform = false;
+    TrackManager &trackManager = TrackManager::getInstance();
 
     Impl() {
         handle = dlopen("/System/Library/PrivateFrameworks/MediaRemote.framework/MediaRemote", RTLD_LAZY);
@@ -86,16 +68,21 @@ public:
     }
 
     void processNowPlayingInfo(CFDictionaryRef info) {
-        auto &scrobbler = LastFmScrobbler::getInstance();
+        auto *currentTrack = trackManager.getCurrentTrack();
+        const std::string &lastTitle = trackManager.getLastTitle();
+        const std::string &lastArtist = trackManager.getLastArtist();
+        const std::string &extractedArtist = trackManager.getExtractedArtist();
+        const std::string &extractedTitle = trackManager.getExtractedTitle();
 
         std::string artist, title, album;
-        double durationValue = lastDuration;
-        double elapsedValue = lastElapsed;
+        double durationValue = currentTrack ? currentTrack->lastDuration : 0.0;
+        double elapsedValue = currentTrack ? currentTrack->lastElapsed : 0.0;
         double reportedElapsed;
         double playbackRateValue = 0.0;
 
-        extractMetadata(info, artist, title, album, durationValue, lastDuration, playbackRateValue);
-        isFromMusicPlatform = !artist.empty() && !title.empty() && !album.empty();
+        extractMetadata(info, artist, title, album, durationValue,
+                        currentTrack ? currentTrack->lastDuration : durationValue, playbackRateValue);
+        trackManager.setFromMusicPlatform(!artist.empty() && !title.empty() && !album.empty());
 
         handleFlushedMetadata(artist, title, album);
 
@@ -105,110 +92,38 @@ public:
                                                                                                   : lastArtist;
         std::string scrobbleTitle = !extractedTitle.empty() ? extractedTitle : !title.empty() ? title : lastTitle;
 
-        if (!currentTitle.empty() && currentTitle != lastTitle) {
-            processTitleChange(currentTitle, artist, title, album, scrobbleArtist, scrobbleTitle, playbackRateValue);
+        if (!title.empty() && title != trackManager.getLastTitle()) {
+            trackManager.processTitleChange(artist, title, album, playbackRateValue);
+            currentTrack = trackManager.getCurrentTrack();
         }
 
-        // Skip processing if it's not music
-        if (!isMusic) {
+        if (!currentTrack || !currentTrack->isMusic) {
             return;
         }
 
-        updateElapsedTime(info, reportedElapsed, playbackRateValue, elapsedValue, lastElapsed, lastFetchTime,
-                          lastReportedElapsed);
-        scrobbler.sendNowPlayingUpdate(scrobbleArtist, scrobbleTitle, isMusic, album, lastNowPlayingSent, playbackRateValue);
-        handlePlaybackStateChange(currentTitle, scrobbleArtist, scrobbleTitle, album, playbackRateValue, elapsedValue);
-    }
+        updateElapsedTime(info, reportedElapsed, playbackRateValue, elapsedValue,
+                          currentTrack->lastElapsed, currentTrack->lastFetchTime,
+                          currentTrack->lastReportedElapsed);
 
-    void processTitleChange(const std::string &currentTitle, const std::string &artist, const std::string &title,
-                            const std::string &album, std::string &scrobbleArtist, std::string &scrobbleTitle,
-                            double playbackRateValue) {
-        LOG_DEBUG("Title changed: '" + lastTitle + "' -> '" + currentTitle + "'");
+        scrobbler.sendNowPlayingUpdate(scrobbleArtist, scrobbleTitle,
+                                       currentTrack->isMusic, album,
+                                       currentTrack->lastNowPlayingSent,
+                                       playbackRateValue);
 
-        std::string newArtist, newTitle;
-        if (isFromMusicPlatform) {
-            scrobbleArtist = artist;
-            scrobbleTitle = title;
-            extractedArtist = artist;
-            extractedTitle = title;
-            isMusic = true;
-            LOG_DEBUG("Using platform metadata: " + scrobbleArtist + " - " + scrobbleTitle);
-        } else if (extractMusicInfo(currentTitle, newArtist, newTitle)) {
-            extractedArtist = newArtist;
-            extractedTitle = newTitle;
-            scrobbleArtist = extractedArtist;
-            scrobbleTitle = extractedTitle;
-            isMusic = true;
-            LOG_INFO("Using extracted music info: " + scrobbleArtist + " - " + scrobbleTitle);
-        } else {
-            extractedArtist = "";
-            extractedTitle = "";
-            isMusic = isValidMusicContent(artist, title, album);
-            if (isMusic) {
-                scrobbleArtist = artist;
-                scrobbleTitle = currentTitle;
-                LOG_DEBUG("Using original title: " + scrobbleTitle);
-            }
-        }
-
-        if (isMusic) {
-            LOG_DEBUG("Resetting scrobble state for new track");
-            scrobbler.resetScrobbleState(lastElapsed, lastDuration, lastFetchTime, beginTimeStamp, hasScrobbled);
-            if (scrobbleTitle.empty()) {
-                LOG_ERROR("Empty scrobble title detected!");
-                return;
-            }
-
-            std::string playbackState = (playbackRateValue == 0.0) ? "⏸ Paused" :
-                                        (playbackRateValue > 0.0) ? "▶️ Playing" : "⏹ Stopped";
-            LOG_INFO(playbackState + ": " + scrobbleArtist + " - " + scrobbleTitle + " [" + album + "]  (" +
-                     std::to_string(lastDuration) + " sec)");
-        } else {
-            LOG_INFO("Skipping non-music content");
-        }
-
-        // Update last known values after processing
-        lastArtist = scrobbleArtist;
-        lastTitle = currentTitle;
-        lastAlbum = album;
+        trackManager.handlePlaybackStateChange(playbackRateValue, elapsedValue);
     }
 
     void handleFlushedMetadata(std::string &artist, std::string &title, std::string &album) const {
-        if (isMusic && artist.empty() && title.empty() && !lastTitle.empty()) {
+        auto *currentTrack = trackManager.getCurrentTrack();
+        const std::string &lastArtist = trackManager.getLastArtist();
+        const std::string &lastTitle = trackManager.getLastTitle();
+        const std::string &lastAlbum = trackManager.getLastAlbum();
+
+        if (currentTrack && artist.empty() && title.empty() && !lastTitle.empty()) {
             LOG_DEBUG("Metadata was flushed, using cached values");
             artist = lastArtist;
             title = lastTitle;
             album = lastAlbum;
-        }
-    }
-
-    void handlePlaybackStateChange(const std::string &currentTitle, const std::string &scrobbleArtist,
-                                   const std::string &scrobbleTitle, const std::string &album, double playbackRateValue,
-                                   double elapsedValue) {
-        double progressPercentage = (lastDuration > 0.0)
-                                    ? (elapsedValue / lastDuration) * 100.0
-                                    : 0.0;
-
-        std::string playbackState = (playbackRateValue == 0.0) ? "⏸ Paused" :
-                                    (playbackRateValue > 0.0) ? "▶️ Playing" : "⏹ Stopped";
-
-        if (playbackState != lastPlaybackState) {
-            lastPlaybackState = playbackState;
-            LOG_INFO(playbackState + ": " + scrobbleArtist + " - " + scrobbleTitle + " [" + album + "]  (" +
-                     std::to_string(lastDuration) + " sec)");
-        }
-
-        if (currentTitle == lastTitle && progressPercentage < 10.0 && hasScrobbled && playbackRateValue > 0.0) {
-            LOG_INFO("Song restarted (based on elapsed time drop)! Resetting scrobble state");
-            hasScrobbled = false;
-            lastElapsed = 0.0;
-            lastFetchTime = CFAbsoluteTimeGetCurrent();
-            beginTimeStamp = static_cast<int>(std::time(nullptr));
-        }
-
-        if (scrobbler.shouldScrobble(elapsedValue, lastDuration, playbackRateValue, isMusic, hasScrobbled)) {
-            scrobbler.scrobble(scrobbleArtist, scrobbleTitle, album, lastDuration, beginTimeStamp);
-            hasScrobbled = true;
         }
     }
 };
