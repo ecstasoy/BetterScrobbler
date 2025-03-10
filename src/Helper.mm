@@ -71,7 +71,7 @@ void extractMetadata(CFDictionaryRef info, std::string &artist, std::string &tit
         double fromAppleScript = getAppleMusicDuration();
         if (fromAppleScript > 0.0) {
             lastDuration = fromAppleScript;
-            std::cout << "[INFO] Fetched duration from AppleScript: " << lastDuration << " sec\n";
+            LOG_DEBUG("Duration fetched from AppleScript: " + std::to_string(lastDuration));
         }
     }
 
@@ -370,8 +370,6 @@ extractMusicInfo(const std::string &artist, const std::string &title, std::strin
     std::string cleanedTitle = cleanVideoTitle(normalizedTitle);
     trim(cleanedTitle);
 
-    std::cout << "[INFO] Cleaned title: " << cleanedTitle << std::endl;
-
     if (hasMusicSeparators(cleanedTitle)) {
         if (parseStandardFormat(cleanedTitle, outArtist, outTitle)) {
             outArtist = normalizeString(outArtist);
@@ -415,12 +413,12 @@ bool isValidContent(std::string &artist, std::string &title) {
             artist = matches.front();
             matches.pop_front();
             title = matches.front();
-            LOG_INFO("Content verified as valid via Last.fm search");
+            LOG_DEBUG("Content verified as valid via Last.fm search");
             return true;
         }
     }
 
-    LOG_INFO("Failed to verify valid content");
+    LOG_DEBUG("Failed to verify valid content");
     return false;
 }
 
