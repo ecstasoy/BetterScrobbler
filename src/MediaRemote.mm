@@ -86,12 +86,6 @@ public:
 
         handleFlushedMetadata(artist, title, album);
 
-        // Ensure we are working with non-empty values
-        std::string currentTitle = !title.empty() ? title : lastTitle;
-        std::string scrobbleArtist = !extractedArtist.empty() ? extractedArtist : !artist.empty() ? artist
-                                                                                                  : lastArtist;
-        std::string scrobbleTitle = !extractedTitle.empty() ? extractedTitle : !title.empty() ? title : lastTitle;
-
         if (!title.empty() && title != trackManager.getLastTitle()) {
             trackManager.processTitleChange(artist, title, album, playbackRateValue);
             currentTrack = trackManager.getCurrentTrack();
@@ -105,7 +99,7 @@ public:
                           currentTrack->lastElapsed, currentTrack->lastFetchTime,
                           currentTrack->lastReportedElapsed);
 
-        scrobbler.sendNowPlayingUpdate(scrobbleArtist, scrobbleTitle,
+        scrobbler.sendNowPlayingUpdate(trackManager.getExtractedArtist(), trackManager.getExtractedTitle(),
                                        currentTrack->isMusic, album,
                                        currentTrack->lastNowPlayingSent,
                                        playbackRateValue);

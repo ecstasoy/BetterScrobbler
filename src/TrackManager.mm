@@ -15,24 +15,19 @@ void TrackManager::processTitleChange(const std::string &artist, const std::stri
         LOG_DEBUG("Previous track scrobbled on change");
     }
 
-    std::string scrobbleArtist, scrobbleTitle;
     bool isMusic = false;
 
     if (isFromMusicPlatform) {
-        scrobbleArtist = artist;
-        scrobbleTitle = title;
+        extractedArtist = artist;
+        extractedTitle = title;
         isMusic = true;
-        LOG_DEBUG("Using platform metadata: " + scrobbleArtist + " - " + scrobbleTitle);
-    } else if (extractMusicInfo(artist, title, scrobbleArtist, scrobbleTitle)) {
-        extractedArtist = scrobbleArtist;
-        extractedTitle = scrobbleTitle;
+        LOG_DEBUG("Using platform metadata: " + extractedArtist + " - " + extractedTitle);
+    } else if (extractMusicInfo(artist, title, extractedArtist, extractedTitle)) {
         isMusic = true;
-        LOG_DEBUG("Extracted metadata: " + scrobbleArtist + " - " + scrobbleTitle);
-    } else if (isValidContent(scrobbleArtist, scrobbleTitle)) {
-        extractedArtist = scrobbleArtist;
-        extractedTitle = scrobbleTitle;
+        LOG_DEBUG("Extracted metadata: " + extractedArtist + " - " + extractedTitle);
+    } else if (isValidContent(extractedArtist, extractedTitle)) {
         isMusic = true;
-        LOG_DEBUG("Caution! This content might not be valid music: " + scrobbleArtist + " - " + scrobbleTitle);
+        LOG_DEBUG("Caution! This content might not be valid music: " + extractedArtist + " - " + extractedTitle);
     } else {
         extractedArtist = "";
         extractedTitle = "";
@@ -45,11 +40,11 @@ void TrackManager::processTitleChange(const std::string &artist, const std::stri
             trackCache.erase(trackCache.begin());
         }
 
-        std::string trackId = generateTrackId(scrobbleArtist, scrobbleTitle, album);
+        std::string trackId = generateTrackId(extractedArtist, extractedTitle, album);
         auto &state = trackCache[trackId];
 
-        state.artist = scrobbleArtist;
-        state.title = scrobbleTitle;
+        state.artist = extractedArtist;
+        state.title = extractedTitle;
         state.album = album;
         state.isMusic = true;
         state.beginTimeStamp = static_cast<int>(std::time(nullptr));
@@ -60,18 +55,18 @@ void TrackManager::processTitleChange(const std::string &artist, const std::stri
         state.lastNowPlayingSent = CFAbsoluteTimeGetCurrent();
 
         currentTrack = &state;
-        lastArtist = scrobbleArtist;
+        lastArtist = extractedArtist;
         lastTitle = title;
         lastAlbum = album;
 
-        if (scrobbleTitle.empty()) {
+        if (extractedTitle.empty()) {
             LOG_ERROR("Empty scrobble title detected!");
             return;
         }
 
         std::string playbackState = (playbackRateValue == 0.0) ? "⏸ Paused" :
                                     (playbackRateValue > 0.0) ? "▶️ Playing" : "⏹ Stopped";
-        LOG_INFO(playbackState + ": " + scrobbleArtist + " - " + scrobbleTitle + " [" + album + "]  (" +
+        LOG_INFO(playbackState + ": " + extractedArtist + " - " + extractedTitle + " [" + album + "]  (" +
                  std::to_string(currentTrack->lastDuration) + " sec)");
     } else {
         currentTrack = nullptr;
