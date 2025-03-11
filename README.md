@@ -87,7 +87,7 @@ scrobbler
 ```
 brew services start scrobbler
 ```
-2. In this way, scrobbler will be started automatically as a HomeBrew service after each reboot. There's no worries onwards.
+2. In this way, scrobbler will be started automatically as a HomeBrew service after each reboot. There are no worries onwards.
 3. Other commands:
 ```
 # Stop the service
