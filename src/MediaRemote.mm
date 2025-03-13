@@ -86,12 +86,12 @@ public:
 
         handleFlushedMetadata(artist, title, album);
 
-        if (!title.empty() && title != trackManager.getLastTitle()) {
+        if (!title.empty() && title != lastTitle) {
             trackManager.processTitleChange(artist, title, album, playbackRateValue);
             currentTrack = trackManager.getCurrentTrack();
         }
 
-        if (!currentTrack || !currentTrack->isMusic) {
+        if (!currentTrack) {
             return;
         }
 
@@ -99,10 +99,12 @@ public:
                           currentTrack->lastElapsed, currentTrack->lastFetchTime,
                           currentTrack->lastReportedElapsed);
 
-        scrobbler.sendNowPlayingUpdate(trackManager.getExtractedArtist(), trackManager.getExtractedTitle(),
-                                       currentTrack->isMusic, album,
-                                       currentTrack->lastNowPlayingSent,
-                                       playbackRateValue);
+        if (currentTrack->isMusic) {
+            scrobbler.sendNowPlayingUpdate(trackManager.getExtractedArtist(), trackManager.getExtractedTitle(),
+                                           currentTrack->isMusic, album,
+                                           currentTrack->lastNowPlayingSent,
+                                           playbackRateValue);
+        }
 
         trackManager.handlePlaybackStateChange(playbackRateValue, elapsedValue);
     }
