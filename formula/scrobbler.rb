@@ -10,7 +10,7 @@ class Scrobbler < Formula
   depends_on :macos
 
   def install
-    rm_rf "build"
+    rm_r "build" if Dir.exist?("build")
 
     mkdir "build"
     cd "build" do
