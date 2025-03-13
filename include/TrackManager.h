@@ -31,9 +31,11 @@ public:
         std::string artist;
         std::string title;
         std::string album;
+        std::string lyrics;
 
         TrackState() :
                 hasScrobbled(false),
+                hasSubmitted(false),
                 beginTimeStamp(0),
                 lastElapsed(0.0),
                 lastDuration(0.0),
@@ -51,20 +53,27 @@ public:
     void handlePlaybackStateChange(double playbackRate,
                                    double elapsedValue);
 
+    void updateTrackInfo(const std::string &artist,
+                         const std::string &title,
+                         const std::string &album,
+                         bool isMusic,
+                         double duration,
+                         double elapsedValue);
+
     TrackState *getCurrentTrack() { return currentTrack; }
 
-    const std::string &getLastTitle() const { return lastTitle; }
+    [[nodiscard]] const std::string &getLastTitle() const { return lastTitle; }
 
-    const std::string &getLastArtist() const { return lastArtist; }
+    [[nodiscard]] const std::string &getLastArtist() const { return lastArtist; }
 
-    const std::string &getLastAlbum() const { return lastAlbum; }
+    [[nodiscard]] const std::string &getLastAlbum() const { return lastAlbum; }
 
-    const std::string getExtractedTitle() const { return extractedTitle; }
+    [[nodiscard]] std::string getExtractedTitle() const { return extractedTitle; }
 
-    const std::string getExtractedArtist() const { return extractedArtist; }
+    [[nodiscard]] std::string getExtractedArtist() const { return extractedArtist; }
 
-    void setFromMusicPlatform(bool isFromMusicPlatform) {
-        this->isFromMusicPlatform = isFromMusicPlatform;
+    void setFromMusicPlatform(bool fromMusicPlatform) {
+        this->isFromMusicPlatform = fromMusicPlatform;
     }
 
 private:
@@ -81,7 +90,7 @@ private:
     std::string extractedArtist;
     bool isFromMusicPlatform = false;
 
-    std::string generateTrackId(const std::string &artist,
+    static std::string generateTrackId(const std::string &artist,
                                 const std::string &title,
                                 const std::string &album) {
         return artist + "|" + title + "|" + album;
