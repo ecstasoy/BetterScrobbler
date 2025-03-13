@@ -1,0 +1,8 @@
+//
+// Created by Kunhua Huang on 3/13/25.
+//
+
+#ifndef SCROBBLER_LYRICSMANAGER_H
+#define SCROBBLER_LYRICSMANAGER_H
+
+#endif //SCROBBLER_LYRICSMANAGER_H
