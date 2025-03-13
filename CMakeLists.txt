@@ -12,17 +12,21 @@ set(SOURCES
         src/Helper.mm
         src/UrlUtils.mm
         src/Credentials.mm
+        src/TrackManager.mm
+        src/LyricsManager.mm
 )
 
 set(HEADERS
-        header/MediaRemote.h
-        header/LastFmScrobbler.h
-        header/Helper.h
-        header/Config.h
-        header/Logger.h
-        header/CommandLine.h
-        header/Credentials.h
-        header/UrlUtils.h
+        include/MediaRemote.h
+        include/LastFmScrobbler.h
+        include/Helper.h
+        include/Config.h
+        include/Logger.h
+        include/CommandLine.h
+        include/Credentials.h
+        include/UrlUtils.h
+        include/TrackManager.h
+        include/LyricsManager.h
 )
 
 find_package(CURL REQUIRED)
