@@ -37,7 +37,7 @@ bool LastFmScrobbler::sendNowPlaying(const std::string &artist, const std::strin
                                      double duration) {
     auto &credentials = Credentials::getInstance();
 
-    std::string sessionKey = credentials.loadSessionKey();
+    std::string sessionKey = Credentials::loadSessionKey();
     if (sessionKey.empty()) {
         lastError = "No session key available";
         LOG_ERROR(lastError);
@@ -82,7 +82,7 @@ bool LastFmScrobbler::sendNowPlaying(const std::string &artist, const std::strin
     LOG_DEBUG("Sending now playing - Artist: '" + safeArtist + "', Track: '" + safeTrack + "'");
 
     std::map<std::string, std::string> allParams = params;
-    allParams["api_key"] = credentials.getApiKey();
+    allParams["api_key"] = Credentials::getApiKey();
     std::string apiSig = UrlUtils::generateSignature(allParams, credentials);
     allParams["api_sig"] = apiSig;
     allParams["format"] = "json";
@@ -124,7 +124,7 @@ bool LastFmScrobbler::scrobble(const std::string &artist, const std::string &tra
                                double duration, int timeStamp) {
     auto &credentials = Credentials::getInstance();
 
-    std::string sessionKey = credentials.loadSessionKey();
+    std::string sessionKey = Credentials::loadSessionKey();
     if (sessionKey.empty()) {
         lastError = "No session key available";
         LOG_ERROR(lastError);
@@ -166,7 +166,7 @@ bool LastFmScrobbler::scrobble(const std::string &artist, const std::string &tra
     }
 
     std::map<std::string, std::string> allParams = params;
-    allParams["api_key"] = credentials.getApiKey();
+    allParams["api_key"] = Credentials::getApiKey();
     std::string apiSig = UrlUtils::generateSignature(allParams, credentials);
     allParams["api_sig"] = apiSig;
     allParams["format"] = "json";
@@ -183,9 +183,8 @@ bool LastFmScrobbler::scrobble(const std::string &artist, const std::string &tra
 }
 
 bool
-LastFmScrobbler::shouldScrobble(double elapsed, double duration, double playbackRate, bool isMusic, bool hasScrobbled) {
+LastFmScrobbler::shouldScrobble(double elapsed, double duration, double playbackRate, bool isMusic) {
     if (!isMusic) return false;
-    if (hasScrobbled) return false;
 
     double progressPercentage = (duration > 0.0) ? (elapsed / duration) * 100.0 : 0.0;
 
@@ -220,7 +219,7 @@ std::string LastFmScrobbler::search(const std::string &artist, const std::string
     }
 
     std::map<std::string, std::string> allParams = params;
-    allParams["api_key"] = credentials.getApiKey();
+    allParams["api_key"] = Credentials::getApiKey();
     std::string apiSig = UrlUtils::generateSignature(allParams, credentials);
     allParams["api_sig"] = apiSig;
     allParams["format"] = "json";
@@ -238,7 +237,7 @@ std::string LastFmScrobbler::search(const std::string &artist, const std::string
 
 std::list<std::string> LastFmScrobbler::bestMatch(const std::string &artist, const std::string &track) {
     std::list<std::string> result;
-    LOG_INFO("Searching for best match for: " + artist + " - " + track);
+    LOG_DEBUG("Searching for best match for: " + artist + " - " + track);
 
     auto searchAndMatch = [&](const std::string &searchArtist, const std::string &searchTrack) -> bool {
         json j;
