@@ -20,8 +20,9 @@ public:
     static std::string generateSignature(const std::map<std::string, std::string> &params,
                                          Credentials &credentials);
 
-private:
     static std::string urlEncode(const std::string &input);
+
+private:
 
     static std::string buildUrl(const std::string &baseUrl,
                                 const std::map<std::string, std::string> &params);
