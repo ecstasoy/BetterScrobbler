@@ -1,0 +1,10 @@
+# ninja log v5
+2	903	1741849616767927362	CMakeFiles/Scrobbler.dir/src/main.mm.o	b5a6ffc979ac00da
+2	1288	1741849617156345693	CMakeFiles/Scrobbler.dir/src/MediaRemote.mm.o	dde38b8be7b0f051
+3	1843	1741849617708213262	CMakeFiles/Scrobbler.dir/src/UrlUtils.mm.o	108c9da3fb5d3db0
+907	1882	1741849617749526054	CMakeFiles/Scrobbler.dir/src/TrackManager.mm.o	c1d4b4ff37c416ea
+2	2007	1741849617873380068	CMakeFiles/Scrobbler.dir/src/LastFmScrobbler.mm.o	b696877e6c39513
+3	2276	1741849618141699163	CMakeFiles/Scrobbler.dir/src/Credentials.mm.o	8f9e0bfcac25b0ee
+2	2387	1741849618253810907	CMakeFiles/Scrobbler.dir/src/Helper.mm.o	bc0b05dfadfff710
+1291	2408	1741849618279237466	CMakeFiles/Scrobbler.dir/src/LyricsManager.mm.o	c1e353657af79a12
+2408	2591	1741849618459103544	Scrobbler	115af45513f83389

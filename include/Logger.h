@@ -10,6 +10,7 @@
 class Logger {
 public:
     enum class Level {
+        WARNING,
         DEBUG,
         INFO,
         ERROR
@@ -31,8 +32,15 @@ public:
     }
 
     void log(const std::string &message, Level level = Level::INFO) {
+        if (Config::getInstance().isQuietMode() && level != Level::ERROR) {
+            return;
+        }
+
         std::string levelStr;
         switch (level) {
+            case Level::WARNING:
+                levelStr = "WARNING";
+                break;
             case Level::DEBUG:
                 levelStr = "DEBUG";
                 break;
@@ -46,6 +54,7 @@ public:
 
         std::time_t now = std::time(nullptr);
         char timeStr[20];
+        std::cout << "\r\033[K";
         std::strftime(timeStr, sizeof(timeStr), "%Y-%m-%d %H:%M:%S", std::localtime(&now));
 
         std::string logMessage = std::string(timeStr) + " [" + levelStr + "] " + message + "\n";
@@ -56,13 +65,23 @@ public:
         }
 
         if (!Config::getInstance().isDaemonMode()) {
-            if (level == Level::ERROR) {
+            if (level == Level::ERROR && !Config::getInstance().isQuietMode()) {
                 std::cerr << logMessage;
-            } else if (level != Level::DEBUG || showDebug) {
-                std::cout << logMessage;
+            }
+            else if (level != Level::ERROR) {
+                if (level == Level::DEBUG) {
+                    if (showDebug && !Config::getInstance().isQuietMode()) {
+                        std::cout << logMessage;
+                    }
+                }
+                else if ((level == Level::INFO || level == Level::WARNING) && !Config::getInstance().isQuietMode()) {
+                    std::cout << logMessage;
+                }
             }
         }
     }
+
+    void warning(const std::string &message) { log(message, Level::WARNING); }
 
     void debug(const std::string &message) {
         if (showDebug) {
@@ -93,6 +112,7 @@ private:
     bool showDebug = false;
 };
 
+#define LOG_WARNING(msg) Logger::getInstance().warning(msg)
 #define LOG_DEBUG(msg) Logger::getInstance().debug(msg)
 #define LOG_INFO(msg) Logger::getInstance().info(msg)
 #define LOG_ERROR(msg) Logger::getInstance().error(msg)

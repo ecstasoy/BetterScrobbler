@@ -31,9 +31,19 @@ set(HEADERS
 
 find_package(CURL REQUIRED)
 
+find_package(Curses REQUIRED)
+
+if(CURSES_HAVE_NCURSESW_H)
+    include_directories(${CURSES_INCLUDE_DIR})
+    add_definitions(-DHAVE_NCURSESW_H)
+else()
+    message(WARNING "ncursesw not found, Unicode support may be limited")
+endif()
+
 add_executable(Scrobbler ${SOURCES} ${HEADERS})
 
 target_link_libraries(Scrobbler
+        ${CURSES_LIBRARIES}
         CURL::libcurl
         "-framework Foundation"
         "-framework CoreFoundation"

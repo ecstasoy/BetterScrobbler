@@ -18,6 +18,12 @@ public:
 
             if (arg == "--daemon") {
                 config.setDaemonMode(true);
+            } else if (arg == "--no-lyrics") {
+                config.setShowLyrics(false);
+            } else if (arg == "--plain-lyrics") {
+                config.setPreferSyncedLyrics(false);
+            } else if (arg == "--quiet") {
+                config.setQuietMode(true);
             } else if (arg == "--debug") {
                 logger.setDebugEnabled(true);
             } else if (arg.substr(0, 6) == "--log=") {
@@ -38,6 +44,9 @@ private:
         std::cout << "Usage: Scrobbler [options]\n"
                   << "Options:\n"
                   << "  --daemon    Run as a daemon process\n"
+                  << "  --no-lyrics       Disable lyrics display\n"
+                  << "  --plain-lyrics    Prefer plain lyrics over synced lyrics\n"
+                  << "  --quiet           Quiet mode, minimal console output\n"
                   << "  --debug     Show debug message in the console\n"
                   << "  --log=PATH  Specify custom log file path\n"
                   << "  --help      Show this help message\n";

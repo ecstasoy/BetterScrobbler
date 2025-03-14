@@ -44,7 +44,7 @@ public:
             LOG_ERROR("Failed to create dispatch timer");
             return;
         }
-        dispatch_source_set_timer(timer, dispatch_time(DISPATCH_TIME_NOW, 0), 2 * NSEC_PER_SEC, 0);
+        dispatch_source_set_timer(timer, dispatch_time(DISPATCH_TIME_NOW, 0), NSEC_PER_SEC, 0);
         dispatch_source_set_event_handler(timer, ^{
             fetchNowPlayingInfo();
         });

@@ -21,6 +21,7 @@ public:
     struct TrackState {
         bool hasScrobbled;
         bool hasSubmitted;
+        bool hasSyncedLyrics;
         int beginTimeStamp;
         double lastElapsed;
         double lastDuration;
@@ -31,7 +32,10 @@ public:
         std::string artist;
         std::string title;
         std::string album;
-        std::string lyrics;
+        std::string plainLyrics;
+        std::string syncedLyrics;
+        std::vector<std::pair<int, std::string>> parsedSyncedLyrics;
+        int currentLyricIndex;
 
         TrackState() :
                 hasScrobbled(false),
@@ -59,6 +63,7 @@ public:
                          bool isMusic,
                          double duration,
                          double elapsedValue);
+
 
     TrackState *getCurrentTrack() { return currentTrack; }
 

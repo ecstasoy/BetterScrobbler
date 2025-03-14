@@ -18,6 +18,18 @@ public:
 
     void setLogPath(const std::string &path) { logPath = path; }
 
+    [[nodiscard]] bool isShowLyrics() const { return showLyrics; }
+
+    void setShowLyrics(bool enabled) { showLyrics = enabled; }
+
+    void setPreferSyncedLyrics(bool enabled) { preferSyncedLyrics = enabled; }
+
+    void setQuietMode(bool enabled) { quietMode = enabled; }
+
+    [[nodiscard]] bool isQuietMode() const { return quietMode; }
+
+    [[nodiscard]] bool isPreferSyncedLyrics() const { return preferSyncedLyrics; }
+
     [[nodiscard]] const std::string &getAppName() const { return appName; }
 
     void setAppName(const std::string &name) { appName = name; }
@@ -47,6 +59,9 @@ private:
     Config &operator=(const Config &) = delete;
 
     bool isDaemon = false;
+    bool showLyrics = true;
+    bool preferSyncedLyrics = true;
+    bool quietMode = false;
     std::string logPath;
     std::string appName;
     std::string keychainService;

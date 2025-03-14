@@ -3,7 +3,11 @@
 #include <include/Helper.h>
 #include <include/LyricsManager.h>
 #include <sstream>
+#include <sys/ioctl.h>
+#include <unistd.h>
 
+auto &config = Config::getInstance();
+auto &lyricsManager = LyricsManager::getInstance();
 
 void TrackManager::processTitleChange(const std::string &artist, const std::string &title, const std::string &album,
                                       double playbackRateValue) {
@@ -16,6 +20,8 @@ void TrackManager::processTitleChange(const std::string &artist, const std::stri
         currentTrack->hasSubmitted = true;
         LOG_DEBUG("Previous track scrobbled on change");
     }
+
+    lyricsManager.clearLyricsArea();
 
     bool isMusic = false;
     extractedArtist = artist;
@@ -38,13 +44,25 @@ void TrackManager::processTitleChange(const std::string &artist, const std::stri
         LOG_INFO("⏭️ Switched to: " + extractedArtist + " - " + extractedTitle + " [" + album + "]  (" +
                  std::to_string(currentTrack->lastDuration) + " sec)");
         LOG_DEBUG("Resetting scrobble state for new track");
-        if (!currentTrack->lyrics.empty()) {
-            LOG_INFO("Lyrics found for: " + currentTrack->artist + " - " + currentTrack->title);
-            std::cout << "\033[1;31m" << "--- Lyrics start ---" << "\033[0m" << std::endl;
-            std::cout << "\033[1;35m" << currentTrack->lyrics << "\033[0m" << std::endl;
-            std::cout << "\033[1;31m" << "--- Lyrics end ---" << "\033[0m" << std::endl;
-        } else {
-            LOG_INFO("No lyrics found for: " + currentTrack->artist + " - " + currentTrack->title);
+
+        if (config.isShowLyrics()) {
+
+            LOG_DEBUG("hasSyncedLyrics: " + std::to_string(currentTrack->hasSyncedLyrics));
+            LOG_DEBUG("preferSyncedLyrics: " + std::to_string(config.isPreferSyncedLyrics()));
+            LOG_DEBUG("plainLyrics length: " + std::to_string(currentTrack->plainLyrics.length()));
+            LOG_DEBUG("syncedLyrics length: " + std::to_string(currentTrack->syncedLyrics.length()));
+            LOG_DEBUG("parsedSyncedLyrics size: " + std::to_string(currentTrack->parsedSyncedLyrics.size()));
+
+            if (currentTrack->hasSyncedLyrics && config.isPreferSyncedLyrics()) {
+                LOG_INFO("Synced lyrics found for: " + currentTrack->artist + " - " + currentTrack->title);
+            } else if (!currentTrack->plainLyrics.empty()) {
+                LOG_INFO("Plain lyrics found for: " + currentTrack->artist + " - " + currentTrack->title);
+                std::cout << "\033[1;31m" << "\n--- Lyrics start ---" << "\033[0m" << std::endl;
+                std::cout << "\033[1;35m" << currentTrack->plainLyrics << "\033[0m" << std::endl;
+                std::cout << "\033[1;31m" << "--- Lyrics end ---\n" << "\033[0m" << std::endl;
+            } else {
+                LOG_INFO("No lyrics found for: " + currentTrack->artist + " - " + currentTrack->title);
+            }
         }
     } else {
         updateTrackInfo(artist, title, album, isMusic, 0.0, 0.0);
@@ -94,6 +112,8 @@ void TrackManager::handlePlaybackStateChange(double playbackRateValue, double el
         updateTrackInfo(currentTrack->artist, currentTrack->title, currentTrack->album,
                         currentTrack->isMusic, currentTrack->lastDuration, elapsedValue);
     }
+
+    lyricsManager.displayLyrics(playbackRateValue, elapsedValue);
 }
 
 void TrackManager::updateTrackInfo(const std::string &artist, const std::string &title, const std::string &album,
@@ -116,16 +136,21 @@ void TrackManager::updateTrackInfo(const std::string &artist, const std::string 
     state.lastElapsed = elapsedValue;
     state.lastDuration = duration;
     state.lastNowPlayingSent = CFAbsoluteTimeGetCurrent();
-
-    state.lyrics = LyricsManager::getInstance().fetchLyrics(
-            artist,
-            title,
-            album,
-            state.lastDuration
-    );
+    state.plainLyrics = "";
+    state.syncedLyrics = "";
+    state.hasSyncedLyrics = false;
+    state.parsedSyncedLyrics.clear();
+    state.currentLyricIndex = -1;
 
     currentTrack = &state;
     lastArtist = artist;
     lastTitle = title;
     lastAlbum = album;
+
+    LyricsManager::getInstance().fetchLyrics(
+            artist,
+            title,
+            album,
+            state.lastDuration
+    );
 }
