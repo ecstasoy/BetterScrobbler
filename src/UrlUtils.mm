@@ -159,7 +159,7 @@ std::string UrlUtils::sendGetRequest(const std::string &url, CURL *curl, int max
                 return "";
             }
 
-            if (needsCleanup) {
+            if (needsCleanup && curl) {
                 curl_easy_cleanup(curl);
             }
 
@@ -239,6 +239,10 @@ std::string UrlUtils::sendPostRequest(const std::string &url,
                     continue;
                 }
                 return "";
+            }
+
+            if (needsCleanup && curl) {
+                curl_easy_cleanup(curl);
             }
 
             return response;
