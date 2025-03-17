@@ -24,16 +24,20 @@ public:
         bool hasSyncedLyrics;
         int beginTimeStamp;
         double lastElapsed;
-        double lastDuration;
+        double duration;
         double lastFetchTime;
         double lastReportedElapsed;
         double lastNowPlayingSent;
+        double lastPlaybackRate;
+        double internalElapsed;
+        double lastInternalUpdateTime;
         bool isMusic;
         std::string artist;
         std::string title;
         std::string album;
         std::string plainLyrics;
         std::string syncedLyrics;
+        std::vector<std::string> parsedPlainLyrics;
         std::vector<std::pair<int, std::string>> parsedSyncedLyrics;
         int currentLyricIndex;
 
@@ -42,10 +46,13 @@ public:
                 hasSubmitted(false),
                 beginTimeStamp(0),
                 lastElapsed(0.0),
-                lastDuration(0.0),
+                duration(0.0),
                 lastFetchTime(0.0),
                 lastReportedElapsed(0.0),
                 lastNowPlayingSent(0.0),
+                lastPlaybackRate(0.0),
+                internalElapsed(0.0),
+                lastInternalUpdateTime(0.0),
                 isMusic(false) {}
     };
 
@@ -63,7 +70,6 @@ public:
                          bool isMusic,
                          double duration,
                          double elapsedValue);
-
 
     TrackState *getCurrentTrack() { return currentTrack; }
 

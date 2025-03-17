@@ -2,9 +2,8 @@
 #include <include/Logger.h>
 #include <include/Helper.h>
 #include <include/LyricsManager.h>
-#include <sstream>
 #include <sys/ioctl.h>
-#include <unistd.h>
+
 
 auto &config = Config::getInstance();
 auto &lyricsManager = LyricsManager::getInstance();
@@ -13,11 +12,10 @@ void TrackManager::processTitleChange(const std::string &artist, const std::stri
                                       double playbackRateValue) {
     LOG_DEBUG("Title changed: '" + lastTitle + "' -> '" + title + "'");
 
-    if (currentTrack && currentTrack->hasScrobbled && !currentTrack->hasSubmitted&& currentTrack -> isMusic) {
-        scrobbler.scrobble(currentTrack->artist, currentTrack->title, currentTrack->album,
-                           currentTrack->lastDuration,
-                           currentTrack->beginTimeStamp);
-        currentTrack->hasSubmitted = true;
+    if (currentTrack && currentTrack->hasScrobbled && !currentTrack->hasSubmitted && currentTrack->isMusic) {
+        currentTrack->hasSubmitted = scrobbler.scrobble(currentTrack->artist, currentTrack->title, currentTrack->album,
+                                                        currentTrack->duration,
+                                                        currentTrack->beginTimeStamp);
         LOG_DEBUG("Previous track scrobbled on change");
     }
 
@@ -30,10 +28,10 @@ void TrackManager::processTitleChange(const std::string &artist, const std::stri
     if (isFromMusicPlatform) {
         isMusic = true;
         LOG_DEBUG("Using platform metadata: " + extractedArtist + " - " + extractedTitle);
-    } else if (extractMusicInfo(artist, title, extractedArtist, extractedTitle)) {
+    } else if (Helper::extractMusicInfo(artist, title, extractedArtist, extractedTitle)) {
         isMusic = true;
         LOG_DEBUG("Extracted metadata: " + extractedArtist + " - " + extractedTitle);
-    } else if (isValidContent(extractedArtist, extractedTitle)) {
+    } else if (Helper::isValidContent(extractedArtist, extractedTitle)) {
         isMusic = true;
         LOG_DEBUG("Caution! This content might not be valid music: " + extractedArtist + " - " + extractedTitle);
     }
@@ -42,7 +40,7 @@ void TrackManager::processTitleChange(const std::string &artist, const std::stri
         updateTrackInfo(extractedArtist, extractedTitle, album, isMusic, 0.0, 0.0);
         lastTitle = title;
         LOG_INFO("⏭️ Switched to: " + extractedArtist + " - " + extractedTitle + " [" + album + "]  (" +
-                 std::to_string(currentTrack->lastDuration) + " sec)");
+                 std::to_string(currentTrack->duration) + " sec)");
         LOG_DEBUG("Resetting scrobble state for new track");
 
         if (config.isShowLyrics()) {
@@ -57,9 +55,6 @@ void TrackManager::processTitleChange(const std::string &artist, const std::stri
                 LOG_INFO("Synced lyrics found for: " + currentTrack->artist + " - " + currentTrack->title);
             } else if (!currentTrack->plainLyrics.empty()) {
                 LOG_INFO("Plain lyrics found for: " + currentTrack->artist + " - " + currentTrack->title);
-                std::cout << "\033[1;31m" << "\n--- Lyrics start ---" << "\033[0m" << std::endl;
-                std::cout << "\033[1;35m" << currentTrack->plainLyrics << "\033[0m" << std::endl;
-                std::cout << "\033[1;31m" << "--- Lyrics end ---\n" << "\033[0m" << std::endl;
             } else {
                 LOG_INFO("No lyrics found for: " + currentTrack->artist + " - " + currentTrack->title);
             }
@@ -74,13 +69,13 @@ void TrackManager::processTitleChange(const std::string &artist, const std::stri
 void TrackManager::handlePlaybackStateChange(double playbackRateValue, double elapsedValue) {
     if (!currentTrack) return;
 
-    double progressPercentage = (currentTrack->lastDuration > 0.0)
-                                ? (elapsedValue / currentTrack->lastDuration) * 100.0
+    double progressPercentage = (currentTrack->duration > 0.0)
+                                ? (elapsedValue / currentTrack->duration) * 100.0
                                 : 0.0;
 
     if (!currentTrack->hasScrobbled &&
-        LastFmScrobbler::shouldScrobble(elapsedValue, currentTrack->lastDuration,
-                                 playbackRateValue, currentTrack->isMusic)) {
+        LastFmScrobbler::shouldScrobble(elapsedValue, currentTrack->duration,
+                                        playbackRateValue, currentTrack->isMusic)) {
         currentTrack->hasScrobbled = true;
         LOG_DEBUG("Track reached scrobble threshold");
     }
@@ -92,9 +87,10 @@ void TrackManager::handlePlaybackStateChange(double playbackRateValue, double el
         lastPlaybackState = playbackState;
         if (currentTrack->isMusic) {
             LOG_INFO(
-                    playbackState + ": " + currentTrack->artist + " - " + currentTrack->title + " [" + currentTrack->album +
+                    playbackState + ": " + currentTrack->artist + " - " + currentTrack->title + " [" +
+                    currentTrack->album +
                     "]  (" +
-                    std::to_string(currentTrack->lastDuration) + " sec)");
+                    std::to_string(currentTrack->duration) + " sec)");
         } else {
             LOG_INFO(playbackState + ": " + currentTrack->title);
         }
@@ -102,18 +98,17 @@ void TrackManager::handlePlaybackStateChange(double playbackRateValue, double el
 
     if (currentTrack->title == lastTitle && progressPercentage < 10.0 && currentTrack->hasScrobbled &&
         playbackRateValue > 0.0) {
-        if (currentTrack->hasScrobbled && !currentTrack->hasSubmitted && currentTrack -> isMusic) {
-            scrobbler.scrobble(currentTrack->artist, currentTrack->title, currentTrack->album,
-                               currentTrack->lastDuration,
-                               currentTrack->beginTimeStamp);
-            currentTrack->hasSubmitted = true;
+        if (currentTrack->hasScrobbled && !currentTrack->hasSubmitted && currentTrack->isMusic) {
+            currentTrack->hasSubmitted = scrobbler.scrobble(currentTrack->artist, currentTrack->title,
+                                                            currentTrack->album,
+                                                            currentTrack->duration,
+                                                            currentTrack->beginTimeStamp);
         }
         LOG_INFO("Song restarted (based on elapsed time drop)! Resetting scrobble state");
         updateTrackInfo(currentTrack->artist, currentTrack->title, currentTrack->album,
-                        currentTrack->isMusic, currentTrack->lastDuration, elapsedValue);
+                        currentTrack->isMusic, currentTrack->duration, elapsedValue);
     }
 
-    lyricsManager.displayLyrics(playbackRateValue, elapsedValue);
 }
 
 void TrackManager::updateTrackInfo(const std::string &artist, const std::string &title, const std::string &album,
@@ -134,7 +129,7 @@ void TrackManager::updateTrackInfo(const std::string &artist, const std::string 
     state.hasScrobbled = false;
     state.hasSubmitted = false;
     state.lastElapsed = elapsedValue;
-    state.lastDuration = duration;
+    state.duration = duration;
     state.lastNowPlayingSent = CFAbsoluteTimeGetCurrent();
     state.plainLyrics = "";
     state.syncedLyrics = "";
@@ -147,10 +142,14 @@ void TrackManager::updateTrackInfo(const std::string &artist, const std::string 
     lastTitle = title;
     lastAlbum = album;
 
+    LyricsManager::getInstance().clearLyricsArea();
+
     LyricsManager::getInstance().fetchLyrics(
             artist,
             title,
             album,
-            state.lastDuration
+            state.duration
     );
+
+    LyricsManager::getInstance().forceRefreshLyrics();
 }
