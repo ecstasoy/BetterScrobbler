@@ -14,6 +14,7 @@ set(SOURCES
         src/Credentials.mm
         src/TrackManager.mm
         src/LyricsManager.mm
+        src/Config.mm
 )
 
 set(HEADERS
