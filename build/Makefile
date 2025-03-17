@@ -129,6 +129,14 @@ Scrobbler/fast:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Scrobbler.dir/build.make CMakeFiles/Scrobbler.dir/build
 .PHONY : Scrobbler/fast
 
+src/Config.o: src/Config.mm.o
+.PHONY : src/Config.o
+
+# target to build an object file
+src/Config.mm.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Scrobbler.dir/build.make CMakeFiles/Scrobbler.dir/src/Config.mm.o
+.PHONY : src/Config.mm.o
+
 src/Credentials.o: src/Credentials.mm.o
 .PHONY : src/Credentials.o
 
@@ -202,6 +210,7 @@ help:
 	@echo "... edit_cache"
 	@echo "... rebuild_cache"
 	@echo "... Scrobbler"
+	@echo "... src/Config.o"
 	@echo "... src/Credentials.o"
 	@echo "... src/Helper.o"
 	@echo "... src/LastFmScrobbler.o"

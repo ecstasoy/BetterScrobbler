@@ -8,6 +8,7 @@ set(CMAKE_DEPENDS_LANGUAGES
 
 # The set of dependency files which are needed:
 set(CMAKE_DEPENDS_DEPENDENCY_FILES
+  "/Users/kw/project/BetterScrobbler/src/Config.mm" "CMakeFiles/Scrobbler.dir/src/Config.mm.o" "gcc" "CMakeFiles/Scrobbler.dir/src/Config.mm.o.d"
   "/Users/kw/project/BetterScrobbler/src/Credentials.mm" "CMakeFiles/Scrobbler.dir/src/Credentials.mm.o" "gcc" "CMakeFiles/Scrobbler.dir/src/Credentials.mm.o.d"
   "/Users/kw/project/BetterScrobbler/src/Helper.mm" "CMakeFiles/Scrobbler.dir/src/Helper.mm.o" "gcc" "CMakeFiles/Scrobbler.dir/src/Helper.mm.o.d"
   "/Users/kw/project/BetterScrobbler/src/LastFmScrobbler.mm" "CMakeFiles/Scrobbler.dir/src/LastFmScrobbler.mm.o" "gcc" "CMakeFiles/Scrobbler.dir/src/LastFmScrobbler.mm.o.d"

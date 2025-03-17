@@ -1,4 +1,6 @@
 file(REMOVE_RECURSE
+  "CMakeFiles/Scrobbler.dir/src/Config.mm.o"
+  "CMakeFiles/Scrobbler.dir/src/Config.mm.o.d"
   "CMakeFiles/Scrobbler.dir/src/Credentials.mm.o"
   "CMakeFiles/Scrobbler.dir/src/Credentials.mm.o.d"
   "CMakeFiles/Scrobbler.dir/src/Helper.mm.o"
