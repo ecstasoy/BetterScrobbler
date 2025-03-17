@@ -6,6 +6,7 @@
 #include <include/Logger.h>
 #include <include/Helper.h>
 #include<include/TrackManager.h>
+#import "include/LyricsManager.h"
 
 typedef void (*MRMediaRemoteGetNowPlayingInfo_t)(dispatch_queue_t, void(^)(CFDictionaryRef));
 
@@ -13,7 +14,8 @@ class MediaRemote::Impl {
 public:
     void *handle = nullptr;
     MRMediaRemoteGetNowPlayingInfo_t MRMediaRemoteGetNowPlayingInfo = nullptr;
-    dispatch_source_t timer = nullptr;
+    dispatch_source_t playbackTimer = nullptr;
+    dispatch_source_t lyricsTimer = nullptr;
     LastFmScrobbler &scrobbler = LastFmScrobbler::getInstance();
     TrackManager &trackManager = TrackManager::getInstance();
 
@@ -38,17 +40,56 @@ public:
     }
 
     void registerTimer() {
-        LOG_INFO("Listening for Now Playing changes every 2 seconds...");
-        timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, dispatch_get_main_queue());
-        if (!timer) {
+        LOG_INFO("Listening for Now Playing changes");
+        playbackTimer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, dispatch_get_main_queue());
+        if (!playbackTimer) {
             LOG_ERROR("Failed to create dispatch timer");
             return;
         }
-        dispatch_source_set_timer(timer, dispatch_time(DISPATCH_TIME_NOW, 0), NSEC_PER_SEC, 0);
-        dispatch_source_set_event_handler(timer, ^{
+        dispatch_source_set_timer(playbackTimer, dispatch_time(DISPATCH_TIME_NOW, 0),   NSEC_PER_SEC, 0);
+        dispatch_source_set_event_handler(playbackTimer, ^{
             fetchNowPlayingInfo();
         });
-        dispatch_resume(timer);
+        dispatch_resume(playbackTimer);
+
+        lyricsTimer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, dispatch_get_main_queue());
+        if (!lyricsTimer) {
+            LOG_ERROR("Failed to create lyrics timer");
+            return;
+        }
+        dispatch_source_set_timer(lyricsTimer,
+                                  dispatch_time(DISPATCH_TIME_NOW, 0),
+                                  0.05 * NSEC_PER_SEC,
+                                  0
+        );
+        dispatch_source_set_event_handler(lyricsTimer, ^{
+            auto &lyricsManager = LyricsManager::getInstance();
+            auto &config = Config::getInstance();
+            auto* currentTrack = trackManager.getCurrentTrack();
+            if (!currentTrack) return;
+
+            double now = CFAbsoluteTimeGetCurrent();
+            double interpolatedTime = currentTrack->lastElapsed;
+
+            if (currentTrack->lastPlaybackRate > 0.0) {
+                interpolatedTime += (now - currentTrack->lastFetchTime) * currentTrack->lastPlaybackRate;
+            }
+
+            if (config.isShowLyrics()) {
+                if (config.isPreferSyncedLyrics() && currentTrack->hasSyncedLyrics) {
+                    lyricsManager.displaySyncedLyrics(
+                            currentTrack->lastPlaybackRate,
+                            interpolatedTime
+                    );
+                } else if (!currentTrack->plainLyrics.empty()) {
+                    lyricsManager.displayPlainLyrics(
+                            currentTrack->lastPlaybackRate,
+                            interpolatedTime
+                    );
+                }
+            }
+        });
+        dispatch_resume(lyricsTimer);
     }
 
     void fetchNowPlayingInfo() {
@@ -75,13 +116,12 @@ public:
         const std::string &extractedTitle = trackManager.getExtractedTitle();
 
         std::string artist, title, album;
-        double durationValue = currentTrack ? currentTrack->lastDuration : 0.0;
-        double elapsedValue = currentTrack ? currentTrack->lastElapsed : 0.0;
+        double durationValue = currentTrack->duration;
+        double elapsedValue = currentTrack->lastElapsed;
         double reportedElapsed;
         double playbackRateValue = 0.0;
 
-        extractMetadata(info, artist, title, album, durationValue,
-                        currentTrack ? currentTrack->lastDuration : durationValue, playbackRateValue);
+        Helper::extractMetadata(info, artist, title, album, currentTrack->duration, playbackRateValue);
         trackManager.setFromMusicPlatform(!artist.empty() && !title.empty() && !album.empty());
 
         handleFlushedMetadata(artist, title, album);
@@ -91,11 +131,14 @@ public:
             currentTrack = trackManager.getCurrentTrack();
         }
 
-        if (!currentTrack) {
+        if (currentTrack) {
+            currentTrack->lastPlaybackRate = playbackRateValue;
+        } else {
+            LOG_DEBUG("No current track, skipping update");
             return;
         }
 
-        updateElapsedTime(info, reportedElapsed, playbackRateValue, elapsedValue,
+        Helper::updateElapsedTime(info, reportedElapsed, playbackRateValue, elapsedValue,
                           currentTrack->lastElapsed, currentTrack->lastFetchTime,
                           currentTrack->lastReportedElapsed);
 
