@@ -43,6 +43,14 @@ public:
 
     [[nodiscard]] const std::string &getKeychainSessionKeyAccount() const { return keychainSessionKeyAccount; }
 
+    // Scrobbling control
+    [[nodiscard]] bool isScrobblingEnabled() const { return scrobblingEnabled; }
+
+    void setScrobblingEnabled(bool enabled);
+
+    // Toggle scrobbling state and return new state
+    bool toggleScrobbling();
+
 private:
     Config() {
         appName = "Scrobbler";
@@ -68,6 +76,7 @@ private:
     std::string keychainApiKeyAccount;
     std::string keychainSecretAccount;
     std::string keychainSessionKeyAccount;
+    bool scrobblingEnabled = true;
 };
 
 #endif //BETTERSCROBBLER_CONFIG_H
