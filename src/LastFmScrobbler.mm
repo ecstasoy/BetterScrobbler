@@ -3,6 +3,7 @@
 #include "include/Credentials.h"
 #include "include/UrlUtils.h"
 #include "include/Helper.h"
+#include "include/Config.h"
 #include "../lib/json.hpp"
 #include <map>
 
@@ -44,7 +45,7 @@ bool LastFmScrobbler::sendNowPlaying(const std::string &artist, const std::strin
         return false;
     }
 
-    std::string safeArtist = artist;
+    std::string safeArtist = Helper::cleanArtistName(artist);
     std::string safeTrack = track;
     std::string safeAlbum = album;
 
@@ -59,11 +60,6 @@ bool LastFmScrobbler::sendNowPlaying(const std::string &artist, const std::strin
     cleanString(safeArtist);
     cleanString(safeTrack);
     cleanString(safeAlbum);
-
-    if (safeTrack.empty()) {
-        LOG_ERROR("Track title is empty after cleaning");
-        return false;
-    }
 
     std::map<std::string, std::string> params = {
             {"method", "track.updateNowPlaying"},
@@ -100,6 +96,11 @@ bool LastFmScrobbler::sendNowPlaying(const std::string &artist, const std::strin
 
 void LastFmScrobbler::sendNowPlayingUpdate(const std::string &artist, const std::string &title, bool isMusic,
                                            const std::string &album, double &lastNowPlayingSent, double playbackRate) {
+    // Check if scrobbling is enabled in config
+    if (!Config::getInstance().isScrobblingEnabled()) {
+        return;
+    }
+
     if (playbackRate == 0.0) {
         return;
     }
@@ -113,7 +114,7 @@ void LastFmScrobbler::sendNowPlayingUpdate(const std::string &artist, const std:
         return;
     }
 
-    std::string cleanedArtist = cleanArtistName(artist);
+    std::string cleanedArtist = Helper::cleanArtistName(artist);
 
     LOG_DEBUG("Sending now playing update");
     lastNowPlayingSent = now;
@@ -123,6 +124,11 @@ void LastFmScrobbler::sendNowPlayingUpdate(const std::string &artist, const std:
 bool LastFmScrobbler::scrobble(const std::string &artist, const std::string &track, const std::string &album,
                                double duration, int timeStamp) {
     auto &credentials = Credentials::getInstance();
+
+    if (Config::getInstance().isScrobblingEnabled()) {
+        LOG_DEBUG("Scrobbling is disabled in config");
+        return false;
+    }
 
     std::string sessionKey = Credentials::loadSessionKey();
     if (sessionKey.empty()) {
@@ -135,7 +141,7 @@ bool LastFmScrobbler::scrobble(const std::string &artist, const std::string &tra
         timeStamp = (int) std::time(nullptr);
     }
 
-    std::string safeArtist = cleanArtistName(artist);
+    std::string safeArtist = Helper::cleanArtistName(artist);
     std::string safeTrack = track;
     std::string safeAlbum = album;
 
@@ -184,6 +190,11 @@ bool LastFmScrobbler::scrobble(const std::string &artist, const std::string &tra
 
 bool
 LastFmScrobbler::shouldScrobble(double elapsed, double duration, double playbackRate, bool isMusic) {
+    // Check if scrobbling is enabled in config
+    if (!Config::getInstance().isScrobblingEnabled()) {
+        return false;
+    }
+
     if (!isMusic) return false;
 
     double progressPercentage = (duration > 0.0) ? (elapsed / duration) * 100.0 : 0.0;
@@ -264,19 +275,20 @@ std::list<std::string> LastFmScrobbler::bestMatch(const std::string &artist, con
         std::string bestArtist, bestTrack;
         int bestArtistDistance = 100, bestTrackDistance = 100;
 
-        std::string artistLower = toLower(searchArtist);
-        std::string trackLower = toLower(searchTrack);
+        std::string artistLower = Helper::toLower(searchArtist);
+        std::string trackLower = Helper::toLower(searchTrack);
 
         for (const auto &candidate: j["results"]["trackmatches"]["track"]) {
             if (!candidate.contains("artist") || !candidate.contains("name") ||
-                !candidate.contains("listeners")) continue;
+                !candidate.contains("listeners"))
+                continue;
 
             std::string foundArtist = candidate["artist"].get<std::string>();
             std::string foundTrack = candidate["name"].get<std::string>();
             int listeners = std::stoi(candidate["listeners"].get<std::string>());
 
-            std::string foundArtistLower = toLower(foundArtist);
-            std::string foundTrackLower = toLower(foundTrack);
+            std::string foundArtistLower = Helper::toLower(foundArtist);
+            std::string foundTrackLower = Helper::toLower(foundTrack);
 
             // Sorry if no one wants to listen to your true music
             if (listeners < 200) {
@@ -285,8 +297,8 @@ std::list<std::string> LastFmScrobbler::bestMatch(const std::string &artist, con
                 continue;
             }
 
-            int artistDistance = levenshteinDistance(artistLower, foundArtistLower);
-            int trackDistance = levenshteinDistance(trackLower, foundTrackLower);
+            int artistDistance = Helper::levenshteinDistance(artistLower, foundArtistLower);
+            int trackDistance = Helper::levenshteinDistance(trackLower, foundTrackLower);
 
             LOG_DEBUG("Comparing with: " + foundArtist + " - " + foundTrack +
                       " | Artist Distance: " + std::to_string(artistDistance) +
