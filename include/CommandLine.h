@@ -28,6 +28,8 @@ public:
                 logger.setDebugEnabled(true);
             } else if (arg.substr(0, 6) == "--log=") {
                 config.setLogPath(arg.substr(6));
+            } else if (arg == "--no-scrobble") {
+                config.setScrobblingEnabled(false);
             } else if (arg == "--help") {
                 showHelp();
                 exit(0);
@@ -43,13 +45,14 @@ private:
     static void showHelp() {
         std::cout << "Usage: Scrobbler [options]\n"
                   << "Options:\n"
-                  << "  --daemon    Run as a daemon process\n"
-                  << "  --no-lyrics       Disable lyrics display\n"
+                  << "  --daemon     Run as a daemon process\n"
+                  << "  --no-lyrics  Disable lyrics display\n"
                   << "  --plain-lyrics    Prefer plain lyrics over synced lyrics\n"
-                  << "  --quiet           Quiet mode, minimal console output\n"
-                  << "  --debug     Show debug message in the console\n"
-                  << "  --log=PATH  Specify custom log file path\n"
-                  << "  --help      Show this help message\n";
+                  << "  --quiet      Quiet mode, minimal console output\n"
+                  << "  --debug      Show debug message in the console\n"
+                  << "  --log=PATH   Specify custom log file path\n"
+                  << "  --no-scrobble Disable scrobbling entirely\n"
+                  << "  --help       Show this help message\n";
     }
 };
 
