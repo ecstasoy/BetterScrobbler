@@ -4,9 +4,10 @@
 #include "include/LastFmScrobbler.h"
 #include "include/UrlUtils.h"
 #include "../lib/json.hpp"
-#include <iostream>
 #include <regex>
 #include <map>
+#import <Foundation/Foundation.h>
+#import <Cocoa/Cocoa.h>
 
 using json = nlohmann::json;
 
@@ -29,8 +30,37 @@ double getAppleMusicDuration() {
     }
 }
 
-void extractMetadata(CFDictionaryRef info, std::string &artist, std::string &title, std::string &album,
-                     double &duration, double &lastDuration, double &playbackRate) {
+double getAppleMusicPosition() {
+    NSString *checkScript = @"tell application \"Music\"\n"
+                            "    if player state is playing then\n"
+                            "        return true\n"
+                            "    end if\n"
+                            "    return false\n"
+                            "end tell\n";
+
+    NSAppleScript *checkAppleScript = [[NSAppleScript alloc] initWithSource:checkScript];
+    NSDictionary *error = nil;
+    NSAppleEventDescriptor *checkResult = [checkAppleScript executeAndReturnError:&error];
+
+    if (!checkResult || ![checkResult booleanValue]) {
+        return -1.0;
+    }
+
+    NSString *script = @"tell application \"Music\"\n"
+                       "    return player position\n"
+                       "end tell\n";
+
+    NSAppleScript *appleScript = [[NSAppleScript alloc] initWithSource:script];
+    NSAppleEventDescriptor *result = [appleScript executeAndReturnError:&error];
+
+    if (result) {
+        return [result doubleValue];
+    }
+    return -1.0;
+}
+
+void Helper::extractMetadata(CFDictionaryRef info, std::string &artist, std::string &title, std::string &album,
+                             double &duration, double &playbackRate) {
 
     if (!info) {
         LOG_DEBUG("Null info dictionary received");
@@ -59,22 +89,11 @@ void extractMetadata(CFDictionaryRef info, std::string &artist, std::string &tit
     if (artistRef) CFStringGetCString(artistRef, artistStr, sizeof(artistStr), kCFStringEncodingUTF8);
     if (titleRef) CFStringGetCString(titleRef, titleStr, sizeof(titleStr), kCFStringEncodingUTF8);
     if (albumRef) CFStringGetCString(albumRef, albumStr, sizeof(albumStr), kCFStringEncodingUTF8);
-
     if (durationRef) {
         CFNumberGetValue(durationRef, kCFNumberDoubleType, &duration);
-        if (duration > 0.0 && duration != lastDuration) {
-            lastDuration = duration;
-        }
+    } else {
+        duration = getAppleMusicDuration();
     }
-
-    if (lastDuration == 0.0) {
-        double fromAppleScript = getAppleMusicDuration();
-        if (fromAppleScript > 0.0) {
-            lastDuration = fromAppleScript;
-            LOG_DEBUG("Duration fetched from AppleScript: " + std::to_string(lastDuration));
-        }
-    }
-
     if (playbackRateRef) CFNumberGetValue(playbackRateRef, kCFNumberDoubleType, &playbackRate);
 
     artist = artistStr;
@@ -82,31 +101,30 @@ void extractMetadata(CFDictionaryRef info, std::string &artist, std::string &tit
     album = albumStr;
 }
 
-double updateElapsedTime(CFDictionaryRef info, double &reportedElapsed, double playbackRate, double &elapsedValue,
-                         double &lastElapsed, double &lastFetchTime, double &lastReportedElapsed) {
-    constexpr double SEEK_THRESHOLD = 0.5;
+double
+Helper::updateElapsedTime(CFDictionaryRef info, double &reportedElapsed, double playbackRate, double &elapsedValue,
+                          double &lastElapsed, double &lastFetchTime, double &lastReportedElapsed) {
     double now = CFAbsoluteTimeGetCurrent();
 
-    // Get the elapsed time from the now playing info
     auto elapsedTime = (CFNumberRef) CFDictionaryGetValue(info, CFSTR("kMRMediaRemoteNowPlayingInfoElapsedTime"));
     if (elapsedTime) {
         CFNumberGetValue(elapsedTime, kCFNumberDoubleType, &reportedElapsed);
     } else {
-        // If the elapsed time is not available, use the last known value
-        reportedElapsed = lastElapsed;
+        double scriptPosition = getAppleMusicPosition();
+        if (scriptPosition >= 0) {
+            if (std::fabs(scriptPosition - lastReportedElapsed) > 0.1) {
+                reportedElapsed = scriptPosition;
+                elapsedValue = scriptPosition;
+                lastElapsed = scriptPosition;
+                lastReportedElapsed = scriptPosition;
+                lastFetchTime = now;
+                return elapsedValue;
+            }
+        }
     }
 
-    bool isReportedTimeUnchanged = (reportedElapsed == lastReportedElapsed);
-    bool isSeekDetected = std::fabs(reportedElapsed - lastElapsed) > SEEK_THRESHOLD;
-
-    // If the reported elapsed time is the same as the last reported value, calculate the elapsed time based on the playback rate
-    // Seek detection: if the difference between the reported elapsed time and the last known elapsed time is
-    // greater than 0.5 seconds, use the reported elapsed time
-    if (isReportedTimeUnchanged) {
+    if (reportedElapsed == lastReportedElapsed) {
         elapsedValue = lastElapsed + (now - lastFetchTime) * playbackRate;
-    } else if (isSeekDetected) {
-        LOG_DEBUG("Seek detected: " + std::to_string(lastElapsed) + " -> " + std::to_string(reportedElapsed));
-        elapsedValue = reportedElapsed;
     } else {
         elapsedValue = reportedElapsed;
     }
@@ -118,7 +136,7 @@ double updateElapsedTime(CFDictionaryRef info, double &reportedElapsed, double p
     return elapsedValue;
 }
 
-std::string cleanArtistName(const std::string &artist) {
+std::string Helper::cleanArtistName(const std::string &artist) {
     static const std::vector<std::regex> patterns = {
             std::regex(R"(\s*-\s*Topic\s*$)", std::regex_constants::icase),    // "The Wake - Topic"
             std::regex(R"(\s*-\s*Official\s*$)", std::regex_constants::icase), // "Artist Name - Official"
@@ -143,7 +161,7 @@ std::string cleanArtistName(const std::string &artist) {
     return cleaned;
 }
 
-std::string cleanVideoTitle(std::string title) {
+std::string Helper::cleanVideoTitle(std::string title) {
 
     static const std::vector<std::regex> platformSuffixes = {
             std::regex(R"((.+?)_哔哩哔哩_bilibili$)"),
@@ -197,7 +215,7 @@ std::string cleanVideoTitle(std::string title) {
     return cleaned;
 }
 
-std::string normalizeString(const std::string &input) {
+std::string Helper::normalizeString(const std::string &input) {
     std::string result = input;
 
     std::map<std::string, std::string> replacements = {
@@ -350,14 +368,15 @@ bool isRealArtist(const std::string &artist) {
 }
 
 bool
-extractMusicInfo(const std::string &artist, const std::string &title, std::string &outArtist, std::string &outTitle) {
+Helper::extractMusicInfo(const std::string &artist, const std::string &title, std::string &outArtist,
+                         std::string &outTitle) {
 
     if (nonMusicDetect(title)) {
         return false;
     }
 
-    std::string normalizedArtist = normalizeString(artist);
-    std::string cleanedArtist = cleanArtistName(normalizedArtist);
+    std::string normalizedArtist = Helper::normalizeString(artist);
+    std::string cleanedArtist = Helper::cleanArtistName(normalizedArtist);
 
     if (!cleanedArtist.empty() && isRealArtist(cleanedArtist)) {
         LOG_DEBUG("Found valid artist on Last.fm: " + cleanedArtist);
@@ -366,17 +385,17 @@ extractMusicInfo(const std::string &artist, const std::string &title, std::strin
         }
     }
 
-    std::string normalizedTitle = normalizeString(title);
-    std::string cleanedTitle = cleanVideoTitle(normalizedTitle);
+    std::string normalizedTitle = Helper::normalizeString(title);
+    std::string cleanedTitle = Helper::cleanVideoTitle(normalizedTitle);
     trim(cleanedTitle);
 
     if (hasMusicSeparators(cleanedTitle)) {
         if (parseStandardFormat(cleanedTitle, outArtist, outTitle)) {
-            outArtist = normalizeString(outArtist);
-            outTitle = normalizeString(outTitle);
+            outArtist = Helper::normalizeString(outArtist);
+            outTitle = Helper::normalizeString(outTitle);
 
-            outTitle = cleanVideoTitle(outTitle);
-            outArtist = cleanArtistName(outArtist);
+            outTitle = Helper::cleanVideoTitle(outTitle);
+            outArtist = Helper::cleanArtistName(outArtist);
 
             trim(outArtist);
             trim(outTitle);
@@ -403,8 +422,8 @@ extractMusicInfo(const std::string &artist, const std::string &title, std::strin
     return tryLastFmSearch(cleanedArtist, cleanedTitle, outArtist, outTitle);
 };
 
-bool isValidContent(std::string &artist, std::string &title) {
-    std::string cleanedArtist = cleanArtistName(artist);
+bool Helper::isValidContent(std::string &artist, std::string &title) {
+    std::string cleanedArtist = Helper::cleanArtistName(artist);
 
     if (!cleanedArtist.empty() && !title.empty()) {
         LastFmScrobbler &scrobbler = LastFmScrobbler::getInstance();
@@ -422,12 +441,12 @@ bool isValidContent(std::string &artist, std::string &title) {
     return false;
 }
 
-std::string toLower(std::string str) {
+std::string Helper::toLower(std::string str) {
     std::transform(str.begin(), str.end(), str.begin(), ::tolower);
     return str;
 }
 
-int levenshteinDistance(const std::string &s1, const std::string &s2) {
+int Helper::levenshteinDistance(const std::string &s1, const std::string &s2) {
     const size_t len1 = s1.size(), len2 = s2.size();
     std::vector<std::vector<int>> dp(len1 + 1, std::vector<int>(len2 + 1));
 
