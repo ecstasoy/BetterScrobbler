@@ -1,8 +1,8 @@
 class Scrobbler < Formula
   desc "A global macOS Last.fm Scrobbler with support for various music platforms"
   homepage "https://github.com/ecstasoy/BetterScrobbler"
-  url "https://github.com/ecstasoy/BetterScrobbler/releases/download/v1.1/scrobbler-1.1.0.tar.gz"
-  sha256 "8d325d34c21fe3ad3cb6a26e4eecee395db342778a5ec52f628607a5284b0a10"
+  url "https://github.com/ecstasoy/BetterScrobbler/releases/download/v1.2/scrobbler-1.2.0.tar.gz"
+  sha256 "cc3a24860f578d72bd416c974916efff6761482f0c2f5465693c69035018bbe3 "
   license "MIT"
 
   depends_on "cmake" => :build
