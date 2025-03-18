@@ -13,7 +13,9 @@ void TrackManager::processTitleChange(const std::string &artist, const std::stri
     LOG_DEBUG("Title changed: '" + lastTitle + "' -> '" + title + "'");
 
     if (currentTrack && currentTrack->hasScrobbled && !currentTrack->hasSubmitted && currentTrack->isMusic) {
-        currentTrack->hasSubmitted = scrobbler.scrobble(currentTrack->artist, currentTrack->title, currentTrack->album,
+        currentTrack->hasSubmitted = scrobbler.scrobble(currentTrack->artist,
+                                                        currentTrack->title,
+                                                        currentTrack->album,
                                                         currentTrack->duration,
                                                         currentTrack->beginTimeStamp);
         LOG_DEBUG("Previous track scrobbled on change");
@@ -96,17 +98,25 @@ void TrackManager::handlePlaybackStateChange(double playbackRateValue, double el
         }
     }
 
-    if (currentTrack->title == lastTitle && progressPercentage < 10.0 && currentTrack->hasScrobbled &&
-        playbackRateValue > 0.0) {
-        if (currentTrack->hasScrobbled && !currentTrack->hasSubmitted && currentTrack->isMusic) {
-            currentTrack->hasSubmitted = scrobbler.scrobble(currentTrack->artist, currentTrack->title,
+    if (currentTrack->title == lastTitle && progressPercentage < 10.0 && playbackRateValue > 0.0 &&
+            currentTrack->hasScrobbled) {
+        if (!currentTrack->hasSubmitted && currentTrack->isMusic) {
+            currentTrack->hasSubmitted = scrobbler.scrobble(currentTrack->artist,
+                                                            currentTrack->title,
                                                             currentTrack->album,
                                                             currentTrack->duration,
                                                             currentTrack->beginTimeStamp);
+            LOG_DEBUG("Looped track scrobbled on restart");
         }
-        LOG_INFO("Song restarted (based on elapsed time drop)! Resetting scrobble state");
-        updateTrackInfo(currentTrack->artist, currentTrack->title, currentTrack->album,
-                        currentTrack->isMusic, currentTrack->duration, elapsedValue);
+        LOG_INFO("Scrobbled song restarted： " + currentTrack->artist + " - " + currentTrack->title + " [" +
+                 currentTrack->album + "]  (" +
+                 std::to_string(currentTrack->duration) + " sec)");
+        updateTrackInfo(currentTrack->artist,
+                        currentTrack->title,
+                        currentTrack->album,
+                        currentTrack->isMusic,
+                        currentTrack->duration,
+                        elapsedValue);
     }
 
 }
@@ -114,6 +124,22 @@ void TrackManager::handlePlaybackStateChange(double playbackRateValue, double el
 void TrackManager::updateTrackInfo(const std::string &artist, const std::string &title, const std::string &album,
                                    bool isMusic, double duration, double elapsedValue) {
     std::string trackId = generateTrackId(artist, title, album);
+
+    // Check if track is already in cache, only update necessary fields
+    auto it = trackCache.find(trackId);
+    if (it != trackCache.end()) {
+        auto &state = it->second;
+        state.lastFetchTime = CFAbsoluteTimeGetCurrent();
+        state.lastElapsed = elapsedValue;
+        state.hasScrobbled = false;
+        state.hasSubmitted = false;
+        if (duration > 0) {
+            state.duration = duration;
+        }
+        currentTrack = &state;
+        return;
+    }
+
     auto &state = trackCache[trackId];
 
     if (trackCache.size() >= MAX_TRACK_CACHE) {
