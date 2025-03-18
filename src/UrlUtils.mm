@@ -148,6 +148,9 @@ std::string UrlUtils::sendGetRequest(const std::string &url, CURL *curl, int max
                     waitBeforeRetry(attempt);
                     continue;
                 }
+                if (needsCleanup && curl) {
+                    curl_easy_cleanup(curl);
+                }
                 return "";
             }
 
@@ -155,6 +158,9 @@ std::string UrlUtils::sendGetRequest(const std::string &url, CURL *curl, int max
                 if (shouldRetry(response, attempt)) {
                     waitBeforeRetry(attempt);
                     continue;
+                }
+                if (needsCleanup && curl) {
+                    curl_easy_cleanup(curl);
                 }
                 return "";
             }
@@ -166,6 +172,10 @@ std::string UrlUtils::sendGetRequest(const std::string &url, CURL *curl, int max
             return response;
         }
     } catch (const std::exception &e) {
+        if (needsCleanup && curl) {
+            curl_easy_cleanup(curl);
+        }
+
         lastError = "Exception: " + std::string(e.what());
         LOG_ERROR(lastError);
     }
@@ -230,6 +240,10 @@ std::string UrlUtils::sendPostRequest(const std::string &url,
                     waitBeforeRetry(attempt);
                     continue;
                 }
+                if (needsCleanup && curl) {
+                    curl_easy_cleanup(curl);
+                }
+
                 return "";
             }
 
@@ -238,6 +252,10 @@ std::string UrlUtils::sendPostRequest(const std::string &url,
                     waitBeforeRetry(attempt);
                     continue;
                 }
+                if (needsCleanup && curl) {
+                    curl_easy_cleanup(curl);
+                }
+
                 return "";
             }
 
@@ -248,6 +266,10 @@ std::string UrlUtils::sendPostRequest(const std::string &url,
             return response;
         }
     } catch (const std::exception &e) {
+        if (needsCleanup && curl) {
+            curl_easy_cleanup(curl);
+        }
+
         lastError = "Exception: " + std::string(e.what());
         LOG_ERROR(lastError);
     }
