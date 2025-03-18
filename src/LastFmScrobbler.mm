@@ -125,7 +125,7 @@ bool LastFmScrobbler::scrobble(const std::string &artist, const std::string &tra
                                double duration, int timeStamp) {
     auto &credentials = Credentials::getInstance();
 
-    if (Config::getInstance().isScrobblingEnabled()) {
+    if (!Config::getInstance().isScrobblingEnabled()) {
         LOG_DEBUG("Scrobbling is disabled in config");
         return false;
     }
