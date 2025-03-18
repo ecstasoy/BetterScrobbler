@@ -13,16 +13,47 @@ using json = nlohmann::json;
 
 std::string UrlUtils::urlEncode(const std::string &input) {
     std::ostringstream encoded;
-    for (unsigned char c: input) {
+    const char *str = input.c_str();
+    const char *end = str + input.length();
+
+    while (str < end) {
+        auto c = static_cast<unsigned char>(*str);
+
         if (isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~') {
             encoded << c;
+            str++;
         } else if (c == ' ') {
             encoded << '+';
-        } else {
+            str++;
+        } else if ((c & 0x80) == 0) {  // ASCII character
             encoded << '%' << std::uppercase << std::hex << std::setw(2)
                     << std::setfill('0') << static_cast<int>(c);
+            str++;
+        } else { // UTF-8 multi-byte character
+            int bytes = 0;
+            if ((c & 0xE0) == 0xC0) bytes = 2;
+            else if ((c & 0xF0) == 0xE0) bytes = 3;
+            else if ((c & 0xF8) == 0xF0) bytes = 4;
+            else {
+                // invalid UTF-8 character
+                str++;
+                continue;
+            }
+
+            // 确保有足够的字节
+            if (str + bytes <= end) {
+                for (int i = 0; i < bytes; i++) {
+                    encoded << '%' << std::uppercase << std::hex << std::setw(2)
+                            << std::setfill('0') << static_cast<int>(static_cast<unsigned char>(str[i]));
+                }
+                str += bytes;
+            } else {
+                // UTF-8 序列不完整，跳过
+                str++;
+            }
         }
     }
+
     return encoded.str();
 }
 
