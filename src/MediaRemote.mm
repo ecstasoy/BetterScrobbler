@@ -46,7 +46,7 @@ public:
             LOG_ERROR("Failed to create dispatch timer");
             return;
         }
-        dispatch_source_set_timer(playbackTimer, dispatch_time(DISPATCH_TIME_NOW, 0),   NSEC_PER_SEC, 0);
+        dispatch_source_set_timer(playbackTimer, dispatch_time(DISPATCH_TIME_NOW, 0), NSEC_PER_SEC, 0);
         dispatch_source_set_event_handler(playbackTimer, ^{
             fetchNowPlayingInfo();
         });
@@ -65,7 +65,7 @@ public:
         dispatch_source_set_event_handler(lyricsTimer, ^{
             auto &lyricsManager = LyricsManager::getInstance();
             auto &config = Config::getInstance();
-            auto* currentTrack = trackManager.getCurrentTrack();
+            auto *currentTrack = trackManager.getCurrentTrack();
             if (!currentTrack) return;
 
             double now = CFAbsoluteTimeGetCurrent();
