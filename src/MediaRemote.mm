@@ -116,40 +116,42 @@ public:
         const std::string &extractedTitle = trackManager.getExtractedTitle();
 
         std::string artist, title, album;
-        double durationValue = currentTrack->duration;
-        double elapsedValue = currentTrack->lastElapsed;
-        double reportedElapsed;
-        double playbackRateValue = 0.0;
-
-        Helper::extractMetadata(info, artist, title, album, currentTrack->duration, playbackRateValue);
-        trackManager.setFromMusicPlatform(!artist.empty() && !title.empty() && !album.empty());
-
-        handleFlushedMetadata(artist, title, album);
-
-        if (!title.empty() && title != lastTitle) {
-            trackManager.processTitleChange(artist, title, album, playbackRateValue);
-            currentTrack = trackManager.getCurrentTrack();
-        }
-
         if (currentTrack) {
-            currentTrack->lastPlaybackRate = playbackRateValue;
-        } else {
-            LOG_DEBUG("No current track, skipping update");
-            return;
+            double durationValue = currentTrack->duration;
+            double elapsedValue = currentTrack->lastElapsed;
+            double reportedElapsed;
+            double playbackRateValue = 0.0;
+
+            Helper::extractMetadata(info, artist, title, album, currentTrack->duration, playbackRateValue);
+            trackManager.setFromMusicPlatform(!artist.empty() && !title.empty() && !album.empty());
+
+            handleFlushedMetadata(artist, title, album);
+
+            if (!title.empty() && title != lastTitle) {
+                trackManager.processTitleChange(artist, title, album, playbackRateValue);
+                currentTrack = trackManager.getCurrentTrack();
+            }
+
+            if (currentTrack) {
+                currentTrack->lastPlaybackRate = playbackRateValue;
+            } else {
+                LOG_DEBUG("No current track, skipping update");
+                return;
+            }
+
+            Helper::updateElapsedTime(info, reportedElapsed, playbackRateValue, elapsedValue,
+                                      currentTrack->lastElapsed, currentTrack->lastFetchTime,
+                                      currentTrack->lastReportedElapsed);
+
+            if (currentTrack->isMusic) {
+                scrobbler.sendNowPlayingUpdate(trackManager.getExtractedArtist(), trackManager.getExtractedTitle(),
+                                               currentTrack->isMusic, album,
+                                               currentTrack->lastNowPlayingSent,
+                                               playbackRateValue);
+            }
+
+            trackManager.handlePlaybackStateChange(playbackRateValue, elapsedValue);
         }
-
-        Helper::updateElapsedTime(info, reportedElapsed, playbackRateValue, elapsedValue,
-                          currentTrack->lastElapsed, currentTrack->lastFetchTime,
-                          currentTrack->lastReportedElapsed);
-
-        if (currentTrack->isMusic) {
-            scrobbler.sendNowPlayingUpdate(trackManager.getExtractedArtist(), trackManager.getExtractedTitle(),
-                                           currentTrack->isMusic, album,
-                                           currentTrack->lastNowPlayingSent,
-                                           playbackRateValue);
-        }
-
-        trackManager.handlePlaybackStateChange(playbackRateValue, elapsedValue);
     }
 
     void handleFlushedMetadata(std::string &artist, std::string &title, std::string &album) const {
