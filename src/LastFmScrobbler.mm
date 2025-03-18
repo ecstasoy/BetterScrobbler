@@ -185,6 +185,7 @@ bool LastFmScrobbler::scrobble(const std::string &artist, const std::string &tra
                  (album.empty() ? "" : " [" + album + "]"));
         return true;
     }
+
     return false;
 }
 
