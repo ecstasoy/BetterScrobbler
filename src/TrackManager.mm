@@ -129,6 +129,8 @@ void TrackManager::updateTrackInfo(const std::string &artist, const std::string 
     auto it = trackCache.find(trackId);
     if (it != trackCache.end()) {
         auto &state = it->second;
+        state.artist = artist;
+        state.title = title;
         state.lastFetchTime = CFAbsoluteTimeGetCurrent();
         state.lastElapsed = elapsedValue;
         state.hasScrobbled = false;
