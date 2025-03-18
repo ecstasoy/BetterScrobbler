@@ -371,6 +371,10 @@ LyricsManager::KeyAction LyricsManager::checkKeypress() {
             Config::getInstance().toggleScrobbling();
             action = SCROLL;
             break;
+        case 'q':
+            action = QUIT;
+            exit(0);
+            break;
     }
 
     return action;
