@@ -30,32 +30,60 @@ double getAppleMusicDuration() {
     }
 }
 
+bool getAppleMusicStatus() {
+    static NSString *script = @"tell application \"Music\"\n"
+                                   "    if player state is playing then\n"
+                                   "        return true\n"
+                                   "    end if\n"
+                                   "    return false\n"
+                                   "end tell\n";
+
+    static NSAppleScript *cachedScript = nil;
+
+    @autoreleasepool {
+        if (!cachedScript) {
+            cachedScript = [[NSAppleScript alloc] initWithSource:script];
+        }
+
+        NSDictionary *error = nil;
+        NSAppleEventDescriptor *result = [cachedScript executeAndReturnError:&error];
+
+        if (result) {
+            BOOL isPlaying = [result booleanValue];
+            return isPlaying;
+        } else {
+            NSLog(@"AppleScript error: %@", error);
+        }
+    }
+
+    return -1.0;
+}
+
 double getAppleMusicPosition() {
-    NSString *checkScript = @"tell application \"Music\"\n"
-                            "    if player state is playing then\n"
-                            "        return true\n"
-                            "    end if\n"
-                            "    return false\n"
-                            "end tell\n";
 
-    NSAppleScript *checkAppleScript = [[NSAppleScript alloc] initWithSource:checkScript];
-    NSDictionary *error = nil;
-    NSAppleEventDescriptor *checkResult = [checkAppleScript executeAndReturnError:&error];
-
-    if (!checkResult || ![checkResult booleanValue]) {
+    if (!getAppleMusicStatus()) {
         return -1.0;
     }
 
-    NSString *script = @"tell application \"Music\"\n"
+    static NSString *script = @"tell application \"Music\"\n"
                        "    return player position\n"
                        "end tell\n";
 
-    NSAppleScript *appleScript = [[NSAppleScript alloc] initWithSource:script];
-    NSAppleEventDescriptor *result = [appleScript executeAndReturnError:&error];
+    static NSAppleScript *cachedScript = nil;
 
-    if (result) {
-        return [result doubleValue];
+    @autoreleasepool {
+        if (!cachedScript) {
+            cachedScript = [[NSAppleScript alloc] initWithSource:script];
+        }
+
+        NSDictionary *error = nil;
+        NSAppleEventDescriptor *result = [cachedScript executeAndReturnError:&error];
+
+        if (result) {
+            return [result doubleValue];
+        }
     }
+
     return -1.0;
 }
 
