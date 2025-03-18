@@ -63,6 +63,7 @@ void TrackManager::processTitleChange(const std::string &artist, const std::stri
         }
     } else {
         updateTrackInfo(artist, title, album, isMusic, 0.0, 0.0);
+        lastTitle = title;
         LOG_INFO("⏭️ Switched to: " + title);
         LOG_INFO("Detected non-music content: " + artist + " - " + title + ", skipping...");
     }
@@ -129,8 +130,6 @@ void TrackManager::updateTrackInfo(const std::string &artist, const std::string 
     auto it = trackCache.find(trackId);
     if (it != trackCache.end()) {
         auto &state = it->second;
-        state.artist = artist;
-        state.title = title;
         state.lastFetchTime = CFAbsoluteTimeGetCurrent();
         state.lastElapsed = elapsedValue;
         state.hasScrobbled = false;
