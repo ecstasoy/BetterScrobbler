@@ -290,7 +290,7 @@ std::string Helper::normalizeString(const std::string &input) {
             CFMutableStringRef mutableStr = CFStringCreateMutableCopy(kCFAllocatorDefault, 0, (__bridge CFStringRef)str);
             if (mutableStr) {
                 CFStringTransform(mutableStr, nullptr, kCFStringTransformFullwidthHalfwidth, false);
-                str = ( NSString *)mutableStr;
+                str = (__bridge_transfer NSString *)mutableStr;
             }
 
             str = [str precomposedStringWithCanonicalMapping];
