@@ -211,9 +211,9 @@ std::string Helper::cleanVideoTitle(std::string title) {
             std::regex(R"(\s*\[[^\]]*\].*$)"),
 
             std::regex(
-                    R"(\s*[\(\[](?:MV|M/V|Music Video|Official Video|Lyric Video|Audio|Visualizer|Karaoke)[^\)\]]*[\)\]].*$)",
+                    R"(\s*[\(\[](?:MV|M/V|Music Video|Official Video|Lyrics Video|Lyric Video|Audio|Visualizer|Karaoke)[^\)\]]*[\)\]].*$)",
                     std::regex_constants::icase),
-            std::regex(R"(\s*[\(\[](?:Official|HD|4K|Remaster(?:ed)?|[12]\d{3})[^\)\]]*[\)\]].*$)",
+            std::regex(R"(\s*[\(\[](?:Official|HD|4K|demo|Remaster(?:ed)?|[12]\d{3})[^\)\]]*[\)\]].*$)",
                        std::regex_constants::icase),
             std::regex(R"(\s*[\(\[](?:Live|Concert|Tour|Session|Performance)[^\)\]]*[\)\]].*$)",
                        std::regex_constants::icase),
@@ -244,51 +244,91 @@ std::string Helper::cleanVideoTitle(std::string title) {
 }
 
 std::string Helper::normalizeString(const std::string &input) {
-    std::string result = input;
+    if (input.empty()) {
+        return input;
+    }
 
-    std::map<std::string, std::string> replacements = {
-            {"\xE2\x80\x98", "'"},
-            {"\xE2\x80\x99", "'"},
-            {"\xE2\x80\x9A", "'"},
-            {"\xE2\x80\x9C", "\""},
-            {"\xE2\x80\x9D", "\""},
-            {"\xE2\x80\x9E", "\""},
-            {"\xE2\x80\x93", "-"},
-            {"\xE2\x80\x94", "-"},
-            {"\xE2\x88\x92", "-"},
-            {"\xE2\x80\xA6", "..."},
-            {"\xC2\xBD",     "1/2"},
-            {"\xC2\xBC",     "1/4"},
-            {"\xC2\xBE",     "3/4"},
-            {"\xE3\x80\x82", "."},
-            {"\xEF\xBC\x8C", ","},
-            {"\xEF\xBC\x9B", ";"},
-            {"\xEF\xBC\x9A", ":"},
-            {"\xEF\xBC\x81", "!"},
-            {"\xEF\xBC\x9F", "?"},
-            {"\xE3\x80\x8A", "<"},
-            {"\xE3\x80\x8B", ">"},
-            {"\xEF\xBC\x82", "\""},
-            {"\xEF\xBC\x87", "'"},
-            {"\xE3\x80\x90", "["},
-            {"\xE3\x80\x91", "]"}
-    };
+    @autoreleasepool {
+        if (input.find_first_of('\0') != std::string::npos) {
+            LOG_ERROR("Input string contains null characters");
+            return input;
+        }
 
-    for (const auto &pair: replacements) {
-        size_t pos = 0;
-        while ((pos = result.find(pair.first, pos)) != std::string::npos) {
-            result.replace(pos, pair.first.length(), pair.second);
-            pos += pair.second.length();
+        NSData *data = [[NSData alloc] initWithBytes:input.c_str() length:input.length()];
+        if (!data) {
+            LOG_ERROR("Failed to create NSData");
+            return input;
+        }
+
+        NSString *str = nil;
+        NSStringEncoding encodings[] = {
+            NSUTF8StringEncoding,
+            CFStringConvertEncodingToNSStringEncoding(kCFStringEncodingGB_18030_2000),
+            CFStringConvertEncodingToNSStringEncoding(kCFStringEncodingBig5),
+            CFStringConvertEncodingToNSStringEncoding(kCFStringEncodingShiftJIS),
+            CFStringConvertEncodingToNSStringEncoding(kCFStringEncodingEUC_JP),
+            CFStringConvertEncodingToNSStringEncoding(kCFStringEncodingEUC_KR),
+        };
+
+        for (NSStringEncoding encoding : encodings) {
+            str = [[NSString alloc] initWithData:data encoding:encoding];
+            if (str) break;
+        }
+
+        if (!str) {
+            LOG_ERROR("Failed to create NSString with any encoding");
+            return input;
+        }
+
+        @try {
+            str = [str decomposedStringWithCanonicalMapping];
+            if (!str) {
+                LOG_ERROR("Failed during decomposed mapping");
+                return input;
+            }
+
+            CFMutableStringRef mutableStr = CFStringCreateMutableCopy(kCFAllocatorDefault, 0, (__bridge CFStringRef)str);
+            if (mutableStr) {
+                CFStringTransform(mutableStr, nullptr, kCFStringTransformFullwidthHalfwidth, false);
+                str = ( NSString *)mutableStr;
+            }
+
+            str = [str precomposedStringWithCanonicalMapping];
+            if (!str) {
+                LOG_ERROR("Failed during precomposed mapping");
+                return input;
+            }
+
+            NSData *resultData = [str dataUsingEncoding:NSUTF8StringEncoding];
+            if (!resultData) {
+                LOG_ERROR("Failed to convert normalized string back to UTF-8");
+                return input;
+            }
+
+            std::string result(static_cast<const char*>(resultData.bytes), resultData.length);
+
+            result.erase(std::remove_if(result.begin(), result.end(),
+                                    [](unsigned char c) {
+                                        return std::iscntrl(c) || c == '\0';
+                                    }),
+                        result.end());
+
+            if (!result.empty()) {
+                NSData *verifyData = [NSData dataWithBytes:result.c_str() length:result.length()];
+                NSString *verifyStr = [[NSString alloc] initWithData:verifyData encoding:NSUTF8StringEncoding];
+                if (!verifyStr) {
+                    LOG_ERROR("Normalized result is not valid UTF-8");
+                    return input;
+                }
+                return result;
+            }
+        }
+        @catch (NSException *exception) {
+            LOG_ERROR("Exception during string normalization: " + std::string([[exception description] UTF8String]));
         }
     }
 
-    result.erase(std::remove_if(result.begin(), result.end(),
-                                [](unsigned char c) {
-                                    return std::iswcntrl(c);
-                                }),
-                 result.end());
-
-    return result;
+    return input;
 }
 
 inline void trim(std::string &s) {
@@ -379,7 +419,6 @@ tryLastFmSearch(const std::string &artist, const std::string &title, std::string
 
 bool isRealArtist(const std::string &artist) {
     std::map<std::string, std::string> params = {
-            {"method",      "artist.getInfo"},
             {"artist",      artist},
             {"autocorrect", "0"}
     };
@@ -415,6 +454,7 @@ Helper::extractMusicInfo(const std::string &artist, const std::string &title, st
 
     std::string normalizedTitle = Helper::normalizeString(title);
     std::string cleanedTitle = Helper::cleanVideoTitle(normalizedTitle);
+    trim(cleanedArtist);
     trim(cleanedTitle);
 
     if (hasMusicSeparators(cleanedTitle)) {
@@ -444,6 +484,8 @@ Helper::extractMusicInfo(const std::string &artist, const std::string &title, st
             }
         }
     } else {
+        outArtist = cleanedArtist;
+        outTitle = cleanedTitle;
         LOG_DEBUG("No common title separator found in: " + cleanedTitle + ", trying Last.fm search");
     }
 
@@ -451,11 +493,9 @@ Helper::extractMusicInfo(const std::string &artist, const std::string &title, st
 };
 
 bool Helper::isValidContent(std::string &artist, std::string &title) {
-    std::string cleanedArtist = Helper::cleanArtistName(artist);
-
-    if (!cleanedArtist.empty() && !title.empty()) {
+    if (!artist.empty() && !title.empty()) {
         LastFmScrobbler &scrobbler = LastFmScrobbler::getInstance();
-        auto matches = scrobbler.bestMatch(cleanedArtist, const_cast<std::string &>(title));
+        auto matches = scrobbler.bestMatch(artist, const_cast<std::string &>(title));
         if (!matches.empty() && matches.size() >= 2) {
             artist = matches.front();
             matches.pop_front();
