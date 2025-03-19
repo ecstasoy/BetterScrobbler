@@ -314,12 +314,6 @@ std::string Helper::normalizeString(const std::string &input) {
                         result.end());
 
             if (!result.empty()) {
-                NSData *verifyData = [NSData dataWithBytes:result.c_str() length:result.length()];
-                NSString *verifyStr = [[NSString alloc] initWithData:verifyData encoding:NSUTF8StringEncoding];
-                if (!verifyStr) {
-                    LOG_ERROR("Normalized result is not valid UTF-8");
-                    return input;
-                }
                 return result;
             }
         }
