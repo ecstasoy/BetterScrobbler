@@ -45,37 +45,21 @@ bool LastFmScrobbler::sendNowPlaying(const std::string &artist, const std::strin
         return false;
     }
 
-    std::string safeArtist = Helper::cleanArtistName(artist);
-    std::string safeTrack = track;
-    std::string safeAlbum = album;
-
-    auto cleanString = [](std::string &s) {
-        s.erase(std::remove_if(s.begin(), s.end(),
-                               [](unsigned char c) {
-                                   return std::iswcntrl(c);
-                               }),
-                s.end());
-    };
-
-    cleanString(safeArtist);
-    cleanString(safeTrack);
-    cleanString(safeAlbum);
-
     std::map<std::string, std::string> params = {
             {"method", "track.updateNowPlaying"},
-            {"artist", safeArtist},
-            {"track",  safeTrack},
+            {"artist", artist},
+            {"track",  track},
             {"sk",     sessionKey}
     };
 
-    if (!safeAlbum.empty()) {
-        params["album"] = safeAlbum;
+    if (!album.empty()) {
+        params["album"] = album;
     }
     if (duration > 0) {
         params["duration"] = std::to_string((int) duration);
     }
 
-    LOG_DEBUG("Sending now playing - Artist: '" + safeArtist + "', Track: '" + safeTrack + "'");
+    LOG_DEBUG("Sending now playing - Artist: '" + artist + "', Track: '" + track + "'");
 
     std::map<std::string, std::string> allParams = params;
     allParams["api_key"] = Credentials::getApiKey();
@@ -96,6 +80,7 @@ bool LastFmScrobbler::sendNowPlaying(const std::string &artist, const std::strin
 
 void LastFmScrobbler::sendNowPlayingUpdate(const std::string &artist, const std::string &title, bool isMusic,
                                            const std::string &album, double &lastNowPlayingSent, double playbackRate) {
+
     // Check if scrobbling is enabled in config
     if (!Config::getInstance().isScrobblingEnabled()) {
         return;
@@ -114,11 +99,9 @@ void LastFmScrobbler::sendNowPlayingUpdate(const std::string &artist, const std:
         return;
     }
 
-    std::string cleanedArtist = Helper::cleanArtistName(artist);
-
     LOG_DEBUG("Sending now playing update");
     lastNowPlayingSent = now;
-    LastFmScrobbler::getInstance().sendNowPlaying(cleanedArtist, title, album, 0.0 /* duration placeh. */);
+    LastFmScrobbler::getInstance().sendNowPlaying(artist, title, album, 0.0 /* duration placeh. */);
 }
 
 bool LastFmScrobbler::scrobble(const std::string &artist, const std::string &track, const std::string &album,
@@ -141,31 +124,16 @@ bool LastFmScrobbler::scrobble(const std::string &artist, const std::string &tra
         timeStamp = (int) std::time(nullptr);
     }
 
-    std::string safeArtist = Helper::cleanArtistName(artist);
-    std::string safeTrack = track;
-    std::string safeAlbum = album;
-
-    auto cleanString = [](std::string &s) {
-        s.erase(std::remove_if(s.begin(), s.end(),
-                               [](unsigned char c) {
-                                   return std::iswcntrl(c);
-                               }),
-                s.end());
-    };
-
-    cleanString(safeTrack);
-    cleanString(safeAlbum);
-
     std::map<std::string, std::string> params = {
             {"method",    "track.scrobble"},
-            {"artist",    safeArtist},
-            {"track",     safeTrack},
+            {"artist",    artist},
+            {"track",     track},
             {"timestamp", std::to_string(timeStamp)},
             {"sk",        sessionKey}
     };
 
-    if (!safeAlbum.empty()) {
-        params["album"] = safeAlbum;
+    if (!album.empty()) {
+        params["album"] = album;
     }
     if (duration > 0) {
         params["duration"] = std::to_string((int) duration);
@@ -204,8 +172,6 @@ LastFmScrobbler::shouldScrobble(double elapsed, double duration, double playback
 }
 
 std::string LastFmScrobbler::search(const std::string &artist, const std::string &track) {
-    auto &credentials = Credentials::getInstance();
-
     std::string safeArtist = artist;
     std::string safeTrack = track;
 
@@ -221,8 +187,6 @@ std::string LastFmScrobbler::search(const std::string &artist, const std::string
     cleanString(safeTrack);
 
     std::map<std::string, std::string> params;
-    params["method"] = "track.search";
-
     if (!safeArtist.empty()) {
         params["artist"] = safeArtist;
     }
@@ -230,14 +194,8 @@ std::string LastFmScrobbler::search(const std::string &artist, const std::string
         params["track"] = safeTrack;
     }
 
-    std::map<std::string, std::string> allParams = params;
-    allParams["api_key"] = Credentials::getApiKey();
-    std::string apiSig = UrlUtils::generateSignature(allParams, credentials);
-    allParams["api_sig"] = apiSig;
-    allParams["format"] = "json";
-
-    std::string url = "https://ws.audioscrobbler.com/2.0/";
-    std::string response = UrlUtils::sendPostRequest(url, allParams, curl);
+    std::string url = UrlUtils::buildApiUrl("track.search", params);
+    std::string response = UrlUtils::sendGetRequest(url, curl);
 
     if (response.empty()) {
         LOG_ERROR("Empty response from Last.fm search");

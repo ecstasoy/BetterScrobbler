@@ -86,7 +86,6 @@ void LyricsManager::fetchLyrics(const std::string &artist, const std::string &ti
     if (j.contains("plainLyrics") && !j["plainLyrics"].is_null()) {
         currentTrack->plainLyrics = j["plainLyrics"];
         parsePlainLyrics(currentTrack->plainLyrics);
-        LOG_DEBUG("Parsed plain lyrics: " + currentTrack->plainLyrics);
     } else {
         currentTrack->plainLyrics = "";
     }
@@ -94,7 +93,6 @@ void LyricsManager::fetchLyrics(const std::string &artist, const std::string &ti
     if (j.contains("syncedLyrics") && !j["syncedLyrics"].is_null()) {
         currentTrack->syncedLyrics = j["syncedLyrics"];
         parseSyncedLyrics(currentTrack->syncedLyrics);
-        LOG_DEBUG("Parsed synced lyrics: " + currentTrack->syncedLyrics);
     } else {
         currentTrack->syncedLyrics = "";
         currentTrack->hasSyncedLyrics = false;
