@@ -305,8 +305,11 @@ std::string Helper::normalizeString(const std::string &input) {
                 return input;
             }
 
-            std::string result(static_cast<const char*>(resultData.bytes), resultData.length);
-
+            const char *bytes = static_cast<const char*>(resultData.bytes);
+            NSUInteger length = resultData.length;
+            
+            std::string result(bytes, length);
+            
             result.erase(std::remove_if(result.begin(), result.end(),
                                     [](unsigned char c) {
                                         return std::iscntrl(c) || c == '\0';
