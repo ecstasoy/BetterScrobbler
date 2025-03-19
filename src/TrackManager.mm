@@ -100,13 +100,13 @@ void TrackManager::handlePlaybackStateChange(double playbackRateValue, double el
     }
 
     if (currentTrack->title == lastTitle && progressPercentage < 10.0 && playbackRateValue > 0.0 &&
-            currentTrack->hasScrobbled) {
-        if (!currentTrack->hasSubmitted && currentTrack->isMusic) {
-            currentTrack->hasSubmitted = scrobbler.scrobble(currentTrack->artist,
-                                                            currentTrack->title,
-                                                            currentTrack->album,
-                                                            currentTrack->duration,
-                                                            currentTrack->beginTimeStamp);
+        currentTrack->hasScrobbled && currentTrack->isMusic) {
+        if (!currentTrack->hasSubmitted) {
+            scrobbler.scrobble(currentTrack->artist,
+                               currentTrack->title,
+                               currentTrack->album,
+                               currentTrack->duration,
+                               currentTrack->beginTimeStamp);
             LOG_DEBUG("Looped track scrobbled on restart");
         }
         LOG_INFO("Scrobbled song restarted： " + currentTrack->artist + " - " + currentTrack->title + " [" +
@@ -118,8 +118,9 @@ void TrackManager::handlePlaybackStateChange(double playbackRateValue, double el
                         currentTrack->isMusic,
                         currentTrack->duration,
                         elapsedValue);
+        currentTrack->hasScrobbled = false;
+        currentTrack->hasSubmitted = false;
     }
-
 }
 
 void TrackManager::updateTrackInfo(const std::string &artist, const std::string &title, const std::string &album,
@@ -132,8 +133,6 @@ void TrackManager::updateTrackInfo(const std::string &artist, const std::string 
         auto &state = it->second;
         state.lastFetchTime = CFAbsoluteTimeGetCurrent();
         state.lastElapsed = elapsedValue;
-        state.hasScrobbled = false;
-        state.hasSubmitted = false;
         if (duration > 0) {
             state.duration = duration;
         }
