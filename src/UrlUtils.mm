@@ -8,66 +8,68 @@
 #include <iomanip>
 #include <thread>
 #include <CommonCrypto/CommonDigest.h>
+#import <Foundation/Foundation.h>
 
 using json = nlohmann::json;
 
 std::string UrlUtils::urlEncode(const std::string &input) {
-    std::ostringstream encoded;
-    const char *str = input.c_str();
-    const char *end = str + input.length();
-
-    while (str < end) {
-        auto c = static_cast<unsigned char>(*str);
-
-        if (isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~') {
-            encoded << c;
-            str++;
-        } else if (c == ' ') {
-            encoded << '+';
-            str++;
-        } else if ((c & 0x80) == 0) {  // ASCII character
-            encoded << '%' << std::uppercase << std::hex << std::setw(2)
-                    << std::setfill('0') << static_cast<int>(c);
-            str++;
-        } else { // UTF-8 multi-byte character
-            int bytes = 0;
-            if ((c & 0xE0) == 0xC0) bytes = 2;
-            else if ((c & 0xF0) == 0xE0) bytes = 3;
-            else if ((c & 0xF8) == 0xF0) bytes = 4;
-            else {
-                // invalid UTF-8 character
-                str++;
-                continue;
-            }
-
-            // 确保有足够的字节
-            if (str + bytes <= end) {
-                for (int i = 0; i < bytes; i++) {
-                    encoded << '%' << std::uppercase << std::hex << std::setw(2)
-                            << std::setfill('0') << static_cast<int>(static_cast<unsigned char>(str[i]));
-                }
-                str += bytes;
-            } else {
-                // UTF-8 序列不完整，跳过
-                str++;
-            }
-        }
+    if (input.empty()) {
+        return input;
     }
 
-    return encoded.str();
+    @autoreleasepool {
+        NSString *str = [[NSString alloc] initWithBytes:input.c_str() 
+                                               length:input.length() 
+                                             encoding:NSUTF8StringEncoding];
+        
+        if (!str) {
+            LOG_ERROR("Failed to create NSString from input: " + input);
+            return input;
+        }
+
+        NSMutableCharacterSet *allowedChars = [NSMutableCharacterSet alphanumericCharacterSet];
+        [allowedChars addCharactersInString:@"-._~"];
+
+        NSString *encoded = [str stringByAddingPercentEncodingWithAllowedCharacters:allowedChars];
+        if (!encoded) {
+            LOG_ERROR("Failed to URL encode string: " + input);
+            return input;
+        }
+
+        encoded = [encoded stringByReplacingOccurrencesOfString:@"%20" withString:@"+"];
+
+        const char *utf8 = [encoded UTF8String];
+        if (!utf8) {
+            LOG_ERROR("Failed to convert encoded string to UTF-8");
+            return input;
+        }
+
+        std::string result(utf8);
+//        LOG_DEBUG("URL encoded string: " + result);
+        return result;
+    }
 }
 
 std::string UrlUtils::buildUrl(const std::string &baseUrl,
-                               const std::map<std::string, std::string> &params) {
+                             const std::map<std::string, std::string> &params) {
     std::string url = baseUrl;
     bool first = true;
 
-    for (const auto &param: params) {
+    for (const auto &param : params) {
+        std::string encodedKey = urlEncode(param.first);
+        std::string encodedValue = urlEncode(param.second);
+        
+        if (encodedKey.empty() || encodedValue.empty()) {
+            LOG_ERROR("Failed to encode parameter: " + param.first + " = " + param.second);
+            continue;
+        }
+
         url += (first ? "?" : "&");
-        url += urlEncode(param.first) + "=" + urlEncode(param.second);
+        url += encodedKey + "=" + encodedValue;
         first = false;
     }
 
+    LOG_DEBUG("Built URL: " + url);
     return url;
 }
 
