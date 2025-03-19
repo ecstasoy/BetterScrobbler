@@ -161,7 +161,7 @@ public:
         const std::string &lastAlbum = trackManager.getLastAlbum();
 
         if (currentTrack && artist.empty() && title.empty() && !lastTitle.empty()) {
-            LOG_DEBUG("Metadata was flushed, using cached values");
+            // Metadata was flushed, using cached values
             artist = lastArtist;
             title = lastTitle;
             album = lastAlbum;
