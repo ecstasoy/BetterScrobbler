@@ -18,10 +18,7 @@ std::string UrlUtils::urlEncode(const std::string &input) {
     }
 
     @autoreleasepool {
-        NSString *str = [[NSString alloc] initWithBytes:input.c_str() 
-                                               length:input.length() 
-                                             encoding:NSUTF8StringEncoding];
-        
+        NSString *str = @(input.c_str());
         if (!str) {
             LOG_ERROR("Failed to create NSString from input: " + input);
             return input;
@@ -37,16 +34,7 @@ std::string UrlUtils::urlEncode(const std::string &input) {
         }
 
         encoded = [encoded stringByReplacingOccurrencesOfString:@"%20" withString:@"+"];
-
-        const char *utf8 = [encoded UTF8String];
-        if (!utf8) {
-            LOG_ERROR("Failed to convert encoded string to UTF-8");
-            return input;
-        }
-
-        std::string result(utf8);
-//        LOG_DEBUG("URL encoded string: " + result);
-        return result;
+        return std::string([encoded UTF8String]);
     }
 }
 
