@@ -1,7 +1,8 @@
-#ifndef BETTERSCROBBLER_MEDIAREMOTE_H
-#define BETTERSCROBBLER_MEDIAREMOTE_H
+#ifndef SCROBBLER_MEDIAREMOTE_H
+#define SCROBBLER_MEDIAREMOTE_H
 
 #include <string>
+#include <mutex>
 #include "LastFmScrobbler.h"
 
 class MediaRemote {
@@ -20,6 +21,7 @@ private:
     class Impl;
 
     Impl *impl;
+    std::mutex mediaRemoteMutex;
 };
 
-#endif //BETTERSCROBBLER_MEDIAREMOTE_H
+#endif //SCROBBLER_MEDIAREMOTE_H

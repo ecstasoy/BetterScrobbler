@@ -21,13 +21,13 @@ public:
     extractMetadata(CFDictionaryRef info, std::string &artist, std::string &title, std::string &album, double &duration,
                     double &playbackRate);
 
-    static double updateElapsedTime(CFDictionaryRef info, double &reportedElapsed, double playbackRate, double &elapsedValue,
-                                    double &lastElapsed, double &lastFetchTime, double &lastReportedElapsed);
-
-    static bool isValidContent(std::string &artist, std::string &title);
+    static double
+    updateElapsedTime(CFDictionaryRef info, double &reportedElapsed, double playbackRate, double &elapsedValue,
+                      double &lastElapsed, double &lastFetchTime, double &lastReportedElapsed);
 
     static bool
-    extractMusicInfo(const std::string &artist, const std::string &title, std::string &outArtist,
+    extractMusicInfo(const std::string &artist, const std::string &title, const std::string &album,
+                     std::string &outArtist,
                      std::string &outTitle);
 
     static std::string cleanArtistName(const std::string &artist);
@@ -35,6 +35,8 @@ public:
     static std::string cleanVideoTitle(std::string title);
 
     static std::string normalizeString(const std::string &input);
+
+    static bool isUtf8Control(const std::string &str);
 
     static std::string toLower(std::string str);
 

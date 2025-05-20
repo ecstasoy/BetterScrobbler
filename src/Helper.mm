@@ -4,6 +4,7 @@
 #include "include/LastFmScrobbler.h"
 #include "include/UrlUtils.h"
 #include "../lib/json.hpp"
+#import "include/TrackManager.h"
 #include <regex>
 #include <map>
 #import <Foundation/Foundation.h>
@@ -95,38 +96,72 @@ void Helper::extractMetadata(CFDictionaryRef info, std::string &artist, std::str
         return;
     }
 
-    const char *defaultArtist = "Unknown Artist";
-    const char *defaultTitle = "Unknown Title";
-    const char *defaultAlbum = "Unknown Album";
+    @autoreleasepool {
+        LOG_DEBUG("Extracting metadata from info dictionary");
+        
+        auto artistRef = (CFStringRef) CFDictionaryGetValue(info, CFSTR("kMRMediaRemoteNowPlayingInfoArtist"));
+        auto titleRef = (CFStringRef) CFDictionaryGetValue(info, CFSTR("kMRMediaRemoteNowPlayingInfoTitle"));
+        auto albumRef = (CFStringRef) CFDictionaryGetValue(info, CFSTR("kMRMediaRemoteNowPlayingInfoAlbum"));
+        auto durationRef = (CFNumberRef) CFDictionaryGetValue(info, CFSTR("kMRMediaRemoteNowPlayingInfoDuration"));
+        auto playbackRateRef = (CFNumberRef) CFDictionaryGetValue(info,
+                                                                  CFSTR("kMRMediaRemoteNowPlayingInfoPlaybackRate"));
 
-    char artistStr[256] = {0};
-    char titleStr[256] = {0};
-    char albumStr[256] = {0};
+        LOG_DEBUG("Retrieved metadata references from dictionary");
 
-    strncpy(artistStr, defaultArtist, sizeof(artistStr) - 1);
-    strncpy(titleStr, defaultTitle, sizeof(titleStr) - 1);
-    strncpy(albumStr, defaultAlbum, sizeof(albumStr) - 1);
+        @try {
+            if (artistRef) {
+                CFIndex length = CFStringGetLength(artistRef);
+                CFIndex maxSize = CFStringGetMaximumSizeForEncoding(length, kCFStringEncodingUTF8);
+                std::vector<char> buffer(maxSize + 1);
+                if (CFStringGetCString(artistRef, buffer.data(), maxSize + 1, kCFStringEncodingUTF8)) {
+                    artist = buffer.data();
+                    LOG_DEBUG("Extracted artist: '" + artist + "'");
+                }
+            }
 
-    auto artistRef = (CFStringRef) CFDictionaryGetValue(info, CFSTR("kMRMediaRemoteNowPlayingInfoArtist"));
-    auto titleRef = (CFStringRef) CFDictionaryGetValue(info, CFSTR("kMRMediaRemoteNowPlayingInfoTitle"));
-    auto albumRef = (CFStringRef) CFDictionaryGetValue(info, CFSTR("kMRMediaRemoteNowPlayingInfoAlbum"));
-    auto durationRef = (CFNumberRef) CFDictionaryGetValue(info, CFSTR("kMRMediaRemoteNowPlayingInfoDuration"));
-    auto playbackRateRef = (CFNumberRef) CFDictionaryGetValue(info,
-                                                              CFSTR("kMRMediaRemoteNowPlayingInfoPlaybackRate"));
+            if (titleRef) {
+                CFIndex length = CFStringGetLength(titleRef);
+                CFIndex maxSize = CFStringGetMaximumSizeForEncoding(length, kCFStringEncodingUTF8);
+                std::vector<char> buffer(maxSize + 1);
+                if (CFStringGetCString(titleRef, buffer.data(), maxSize + 1, kCFStringEncodingUTF8)) {
+                    title = buffer.data();
+                    LOG_DEBUG("Extracted title: '" + title + "'");
+                }
+            }
 
-    if (artistRef) CFStringGetCString(artistRef, artistStr, sizeof(artistStr), kCFStringEncodingUTF8);
-    if (titleRef) CFStringGetCString(titleRef, titleStr, sizeof(titleStr), kCFStringEncodingUTF8);
-    if (albumRef) CFStringGetCString(albumRef, albumStr, sizeof(albumStr), kCFStringEncodingUTF8);
-    if (durationRef) {
-        CFNumberGetValue(durationRef, kCFNumberDoubleType, &duration);
-    } else {
-        duration = getAppleMusicDuration();
+            if (albumRef) {
+                CFIndex length = CFStringGetLength(albumRef);
+                CFIndex maxSize = CFStringGetMaximumSizeForEncoding(length, kCFStringEncodingUTF8);
+                std::vector<char> buffer(maxSize + 1);
+                if (CFStringGetCString(albumRef, buffer.data(), maxSize + 1, kCFStringEncodingUTF8)) {
+                    album = buffer.data();
+                    LOG_DEBUG("Extracted album: '" + album + "'");
+                }
+            }
+
+            if (durationRef) {
+                CFNumberGetValue(durationRef, kCFNumberDoubleType, &duration);
+                LOG_DEBUG("Extracted duration: " + std::to_string(duration));
+            } else {
+                duration = getAppleMusicDuration();
+                LOG_DEBUG("Got duration from AppleScript: " + std::to_string(duration));
+            }
+
+            if (playbackRateRef) {
+                CFNumberGetValue(playbackRateRef, kCFNumberDoubleType, &playbackRate);
+                LOG_DEBUG("Extracted playback rate: " + std::to_string(playbackRate));
+            }
+            
+            LOG_DEBUG("Metadata extraction completed successfully");
+        } @catch (NSException *exception) {
+            LOG_ERROR("Exception while extracting metadata: " + std::string([[exception description] UTF8String]));
+            artist.clear();
+            title.clear();
+            album.clear();
+            duration = 0.0;
+            playbackRate = 0.0;
+        }
     }
-    if (playbackRateRef) CFNumberGetValue(playbackRateRef, kCFNumberDoubleType, &playbackRate);
-
-    artist = artistStr;
-    title = titleStr;
-    album = albumStr;
 }
 
 double
@@ -137,6 +172,13 @@ Helper::updateElapsedTime(CFDictionaryRef info, double &reportedElapsed, double 
     auto elapsedTime = (CFNumberRef) CFDictionaryGetValue(info, CFSTR("kMRMediaRemoteNowPlayingInfoElapsedTime"));
     if (elapsedTime) {
         CFNumberGetValue(elapsedTime, kCFNumberDoubleType, &reportedElapsed);
+        if (std::fabs(reportedElapsed - lastReportedElapsed) > 0.1) {
+            elapsedValue = reportedElapsed;
+            lastElapsed = reportedElapsed;
+            lastReportedElapsed = reportedElapsed;
+            lastFetchTime = now;
+            return elapsedValue;
+        }
     } else {
         double scriptPosition = getAppleMusicPosition();
         if (scriptPosition >= 0) {
@@ -151,15 +193,13 @@ Helper::updateElapsedTime(CFDictionaryRef info, double &reportedElapsed, double 
         }
     }
 
-    if (reportedElapsed == lastReportedElapsed) {
-        elapsedValue = lastElapsed + (now - lastFetchTime) * playbackRate;
-    } else {
-        elapsedValue = reportedElapsed;
+    // 如果没有获取到新的时间，则根据播放速率计算
+    if (playbackRate > 0.0) {
+        double timeDiff = now - lastFetchTime;
+        elapsedValue = lastElapsed + (timeDiff * playbackRate);
+        lastElapsed = elapsedValue;
+        lastFetchTime = now;
     }
-
-    lastElapsed = elapsedValue;
-    lastReportedElapsed = reportedElapsed;
-    lastFetchTime = now;
 
     return elapsedValue;
 }
@@ -243,6 +283,25 @@ std::string Helper::cleanVideoTitle(std::string title) {
     return cleaned;
 }
 
+// Helper function to determine if a character is a control character in UTF-8
+bool Helper::isUtf8Control(const std::string& str) {
+    for (size_t i = 0; i < str.size(); ++i) {
+        unsigned char c = str[i];
+        if (c < 128) {  // ASCII range
+            if (std::iswcntrl(c)) {
+                return true;
+            }
+        } else if (c >= 192) {  // Start of a new UTF-8 character sequence
+            int num_bytes = 0;
+            if ((c & 0xE0) == 0xC0) num_bytes = 2;
+            else if ((c & 0xF0) == 0xE0) num_bytes = 3;
+            else if ((c & 0xF8) == 0xF0) num_bytes = 4;
+            i += num_bytes - 1; // Skip continuation bytes
+        }
+    }
+    return false;
+}
+
 std::string Helper::normalizeString(const std::string &input) {
     if (input.empty()) {
         return input;
@@ -254,52 +313,78 @@ std::string Helper::normalizeString(const std::string &input) {
             return input;
         }
 
-        NSData *data = [[NSData alloc] initWithBytes:input.c_str() length:input.length()];
-        if (!data) {
-            LOG_ERROR("Failed to create NSData");
-            return input;
-        }
-
-        NSString *str = nil;
-        NSStringEncoding encodings[] = {
-            NSUTF8StringEncoding,
-            CFStringConvertEncodingToNSStringEncoding(kCFStringEncodingGB_18030_2000),
-            CFStringConvertEncodingToNSStringEncoding(kCFStringEncodingBig5),
-            CFStringConvertEncodingToNSStringEncoding(kCFStringEncodingShiftJIS),
-            CFStringConvertEncodingToNSStringEncoding(kCFStringEncodingEUC_JP),
-            CFStringConvertEncodingToNSStringEncoding(kCFStringEncodingEUC_KR),
-        };
-
-        for (NSStringEncoding encoding : encodings) {
-            str = [[NSString alloc] initWithData:data encoding:encoding];
-            if (str) break;
-        }
-
+        // 首先尝试直接创建NSString
+        NSString *str = @(input.c_str());
         if (!str) {
-            LOG_ERROR("Failed to create NSString with any encoding");
-            return input;
+            // 如果直接创建失败，尝试通过NSData和不同编码创建
+            NSData *data = [[NSData alloc] initWithBytes:input.c_str() length:input.length()];
+            if (!data) {
+                LOG_ERROR("Failed to create NSData");
+                return input;
+            }
+
+            NSStringEncoding encodings[] = {
+                NSUTF8StringEncoding,
+                CFStringConvertEncodingToNSStringEncoding(kCFStringEncodingGB_18030_2000),
+                CFStringConvertEncodingToNSStringEncoding(kCFStringEncodingBig5),
+                CFStringConvertEncodingToNSStringEncoding(kCFStringEncodingShiftJIS),
+                CFStringConvertEncodingToNSStringEncoding(kCFStringEncodingEUC_JP),
+                CFStringConvertEncodingToNSStringEncoding(kCFStringEncodingEUC_KR),
+            };
+
+            for (NSStringEncoding encoding : encodings) {
+                str = [[NSString alloc] initWithData:data encoding:encoding];
+                if (str) break;
+            }
+
+            [data release];
+
+            if (!str) {
+                LOG_ERROR("Failed to create NSString with any encoding");
+                return input;
+            }
+        } else {
+            str = [str retain];
         }
 
+        std::string result = input;
         @try {
-            str = [str decomposedStringWithCanonicalMapping];
-            if (!str) {
+            // 规范化处理
+            NSString *decomposedStr = [str decomposedStringWithCanonicalMapping];
+            [str release];
+            
+            if (!decomposedStr) {
                 LOG_ERROR("Failed during decomposed mapping");
                 return input;
             }
 
-            CFMutableStringRef mutableStr = CFStringCreateMutableCopy(kCFAllocatorDefault, 0, (__bridge CFStringRef)str);
-            if (mutableStr) {
-                CFStringTransform(mutableStr, nullptr, kCFStringTransformFullwidthHalfwidth, false);
-                str = (__bridge_transfer NSString *)mutableStr;
+            // 创建可变字符串副本
+            CFMutableStringRef mutableStr = CFStringCreateMutableCopy(kCFAllocatorDefault, 0, (__bridge CFStringRef)decomposedStr);
+            if (!mutableStr) {
+                LOG_ERROR("Failed to create mutable copy of string");
+                return input;
             }
 
-            str = [str precomposedStringWithCanonicalMapping];
-            if (!str) {
+            // 执行全角到半角的转换
+            if (!CFStringTransform(mutableStr, nullptr, kCFStringTransformFullwidthHalfwidth, false)) {
+                CFRelease(mutableStr);
+                LOG_ERROR("Failed to transform string");
+                return input;
+            }
+
+            // 转换回标准形式
+            NSString *transformedStr = (__bridge NSString *)mutableStr;
+            NSString *precomposedStr = [transformedStr precomposedStringWithCanonicalMapping];
+            CFRelease(mutableStr);
+
+            if (!precomposedStr) {
                 LOG_ERROR("Failed during precomposed mapping");
                 return input;
             }
 
-            NSData *resultData = [str dataUsingEncoding:NSUTF8StringEncoding];
+            // 转换回UTF-8
+            NSData *resultData = [precomposedStr dataUsingEncoding:NSUTF8StringEncoding 
+                                          allowLossyConversion:YES];
             if (!resultData) {
                 LOG_ERROR("Failed to convert normalized string back to UTF-8");
                 return input;
@@ -307,26 +392,23 @@ std::string Helper::normalizeString(const std::string &input) {
 
             const char *bytes = static_cast<const char*>(resultData.bytes);
             NSUInteger length = resultData.length;
-            
-            std::string result(bytes, length);
-            
-            result.erase(std::remove_if(result.begin(), result.end(),
-                                    [](unsigned char c) {
-                                        return std::iscntrl(c) || c == '\0';
-                                    }),
-                        result.end());
 
-            if (!result.empty()) {
-                return result;
+            if (bytes && length > 0) {
+                result = std::string(bytes, length);
+                result.erase(std::remove_if(result.begin(), result.end(),
+                                            [](unsigned char c) { return isUtf8Control(std::string(1, c)); }),
+                             result.end());
             }
         }
         @catch (NSException *exception) {
             LOG_ERROR("Exception during string normalization: " + std::string([[exception description] UTF8String]));
+            [str release];
         }
-    }
 
-    return input;
+        return result;
+    }
 }
+
 
 inline void trim(std::string &s) {
     s.erase(0, s.find_first_not_of(" \t\n\r\f\v"));
@@ -398,7 +480,7 @@ bool parseStandardFormat(const std::string &title, std::string &outArtist, std::
 
 bool
 tryLastFmSearch(const std::string &artist, const std::string &title, std::string &outArtist, std::string &outTitle) {
-    if (!title.empty() && !artist.empty()) {
+    if (!title.empty()) {
         LastFmScrobbler &scrobbler = LastFmScrobbler::getInstance();
         auto matches = scrobbler.bestMatch(artist, title);
         if (!matches.empty() && matches.size() >= 2) {
@@ -432,8 +514,19 @@ bool isRealArtist(const std::string &artist) {
 }
 
 bool
-Helper::extractMusicInfo(const std::string &artist, const std::string &title, std::string &outArtist,
+Helper::extractMusicInfo(const std::string &artist, const std::string &title, const std::string &album,
+                         std::string &outArtist,
                          std::string &outTitle) {
+    auto &trackManager = TrackManager::getInstance();
+    auto currentTrack = trackManager.getCurrentTrack();
+    std::string trackId = TrackManager::generateTrackId(artist, title, album);
+
+    if (trackManager.isCachedTrak(trackId)) {
+        currentTrack = trackManager.getCachedTrack(trackId);
+        outArtist = currentTrack->artist;
+        outTitle = currentTrack->title;
+        return true;
+    }
 
     if (nonMusicDetect(title)) {
         return false;
@@ -451,6 +544,7 @@ Helper::extractMusicInfo(const std::string &artist, const std::string &title, st
 
     std::string normalizedTitle = Helper::normalizeString(title);
     std::string cleanedTitle = Helper::cleanVideoTitle(normalizedTitle);
+
     trim(cleanedArtist);
     trim(cleanedTitle);
 
@@ -474,9 +568,12 @@ Helper::extractMusicInfo(const std::string &artist, const std::string &title, st
                         outArtist = verifiedArtist;
                         outTitle = verifiedTitle;
                         return true;
+                    } else {
+                        return false;
                     }
                 } else {
                     LOG_DEBUG("Invalid artist name: " + outArtist);
+                    return false;
                 }
             }
         }
@@ -486,25 +583,10 @@ Helper::extractMusicInfo(const std::string &artist, const std::string &title, st
         LOG_DEBUG("No common title separator found in: " + cleanedTitle + ", trying Last.fm search");
     }
 
+    LOG_DEBUG("Trying Last.fm search with cleaned artist and title: " + cleanedArtist + " - " + cleanedTitle);
+
     return tryLastFmSearch(cleanedArtist, cleanedTitle, outArtist, outTitle);
 };
-
-bool Helper::isValidContent(std::string &artist, std::string &title) {
-    if (!artist.empty() && !title.empty()) {
-        LastFmScrobbler &scrobbler = LastFmScrobbler::getInstance();
-        auto matches = scrobbler.bestMatch(artist, const_cast<std::string &>(title));
-        if (!matches.empty() && matches.size() >= 2) {
-            artist = matches.front();
-            matches.pop_front();
-            title = matches.front();
-            LOG_DEBUG("Content verified as valid via Last.fm search");
-            return true;
-        }
-    }
-
-    LOG_DEBUG("Failed to verify valid content");
-    return false;
-}
 
 std::string Helper::toLower(std::string str) {
     std::transform(str.begin(), str.end(), str.begin(), ::tolower);

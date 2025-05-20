@@ -177,11 +177,12 @@ std::string LastFmScrobbler::search(const std::string &artist, const std::string
 
     auto cleanString = [](std::string &s) {
         s.erase(std::remove_if(s.begin(), s.end(),
-                               [](unsigned char c) {
-                                   return std::iswcntrl(c);
-                               }),
+                               [](unsigned char c)  { return Helper::isUtf8Control(std::string(1, c)); }),
                 s.end());
     };
+
+    LOG_DEBUG("Cleaning artist and track names");
+    LOG_DEBUG("Original: " + safeArtist + " - " + safeTrack);
 
     cleanString(safeArtist);
     cleanString(safeTrack);

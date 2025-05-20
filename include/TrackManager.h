@@ -29,11 +29,11 @@ public:
         double lastReportedElapsed;
         double lastNowPlayingSent;
         double lastPlaybackRate;
-        double internalElapsed;
-        double lastInternalUpdateTime;
         bool isMusic;
         std::string artist;
+        std::string extractArtist;
         std::string title;
+        std::string extractTitle;
         std::string album;
         std::string plainLyrics;
         std::string syncedLyrics;
@@ -51,8 +51,6 @@ public:
                 lastReportedElapsed(0.0),
                 lastNowPlayingSent(0.0),
                 lastPlaybackRate(0.0),
-                internalElapsed(0.0),
-                lastInternalUpdateTime(0.0),
                 isMusic(false) {}
     };
 
@@ -79,14 +77,31 @@ public:
 
     [[nodiscard]] const std::string &getLastAlbum() const { return lastAlbum; }
 
-    [[nodiscard]] std::string getExtractedTitle() const { return extractedTitle; }
+    [[nodiscard]] std::string getExtractedTitle() const {
+        return currentTrack->extractTitle;
+    }
 
-    [[nodiscard]] std::string getExtractedArtist() const { return extractedArtist; }
+    [[nodiscard]] std::string getExtractedArtist() const {
+        return currentTrack->extractArtist;
+    }
 
     void setFromMusicPlatform(bool fromMusicPlatform) {
         this->isFromMusicPlatform = fromMusicPlatform;
     }
 
+    bool isCachedTrak(std::string trackId) {
+        return trackCache.find(trackId) != trackCache.end();
+    }
+
+    TrackState *getCachedTrack(std::string trackId) {
+        return &trackCache[trackId];
+    }
+
+    static std::string generateTrackId(const std::string &artist,
+                                       const std::string &title,
+                                       const std::string &album);
+
+    bool isFromMusicPlatform = false;
 private:
     static const size_t MAX_TRACK_CACHE = 50;
     std::map<std::string, TrackState> trackCache;
@@ -99,13 +114,8 @@ private:
     std::string lastPlaybackState;
     std::string extractedTitle;
     std::string extractedArtist;
-    bool isFromMusicPlatform = false;
 
-    static std::string generateTrackId(const std::string &artist,
-                                const std::string &title,
-                                const std::string &album) {
-        return artist + "|" + title + "|" + album;
-    }
+    std::mutex trackMutex;
 };
 
 #endif //SCROBBLER_TRACKMANAGER_H
