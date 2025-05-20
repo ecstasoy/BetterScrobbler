@@ -73,6 +73,21 @@ scrobbler
      ```
      [INFO] Scrobbled: the Mountain Goats - Against Pollution (Jordan Lake Sessions)
      ```
+   - **Lyrics Display (New Feature!)**:
+     - If lyrics are found for the current song, they will be displayed in the terminal.
+     - Supports both plain text lyrics and synchronized lyrics (LRC format).
+     - Lyrics are fetched from [lrclib.net](https://lrclib.net/).
+     - You can use command-line options to control lyric display (see "Command Line Options" section).
+     ```
+     [INFO] Synced lyrics found for: Artist - Title
+     [INFO] Plain lyrics found for: Artist - Title
+     [INFO] No lyrics found for: Artist - Title
+     ```
+     When lyrics are displayed, you can:
+       - Use `UP`/`DOWN` arrow keys to scroll manually.
+       - Press `a` to toggle between auto-scroll and manual scroll mode.
+       - Press `s` to toggle scrobbling for the current session.
+       - Press `q` to quit.
    - If you are playing video:
      - The music info extracted from the video, if possible
         ```
@@ -118,21 +133,37 @@ pkill scrobbler
 ```
         std::cout << "Usage: Scrobbler [options]\n"
                   << "Options:\n"
-                  << "  --daemon    Run as a daemon process\n"
-                  << "  --debug     Show debug message in the console\n"
-                  << "  --log=PATH  Specify custom log file path\n"
-                  << "  --help      Show this help message\n";
+                  << "  --daemon        Run as a daemon process\n"
+                  << "  --no-lyrics     Disable lyrics display\n"
+                  << "  --plain-lyrics  Prefer plain lyrics over synced lyrics\n"
+                  << "  --quiet         Quiet mode, minimal console output\n"
+                  << "  --debug         Show debug message in the console\n"
+                  << "  --log=PATH      Specify custom log file path\n"
+                  << "  --no-scrobble   Disable scrobbling entirely\n"
+                  << "  --help          Show this help message\n";
 ```
 ### Examples:
 ```
 # Run in background
 scrobbler --daemon
 
+# Disable lyrics display
+scrobbler --no-lyrics
+
+# Prefer plain lyrics
+scrobbler --plain-lyrics
+
+# Enable quiet mode
+scrobbler --quiet
+
 # Enable debug logging
 scrobbler --debug
 
 # Custom log file location
 scrobbler --log=/Users/you/scrobbler.log
+
+# Disable scrobbling
+scrobbler --no-scrobble
 
 # Show help
 scrobbler --help
